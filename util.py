@@ -24,11 +24,12 @@ def get_model(config):
     else:
         raise NotImplementedError('Undefined model type')
 
-def initialize_from_env(eval_test=False):
+def initialize_from_env(eval_test=False, name=None):
   if "GPU" in os.environ:
     set_gpus(int(os.environ["GPU"]))
 
-  name = sys.argv[1]
+  if name is None:
+    name = sys.argv[1]
   print("Running experiment: {}".format(name))
 
   if eval_test:

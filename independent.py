@@ -19,6 +19,7 @@ from bert import tokenization
 from bert import modeling
 from pytorch_to_tf import load_from_pytorch_checkpoint
 
+from anagen.model import CorefRSAModel
 
 class CorefModel(object):
   def __init__(self, config):
@@ -59,6 +60,8 @@ class CorefModel(object):
     assignment_map, initialized_variable_names = modeling.get_assignment_map_from_checkpoint(tvars, config['tf_checkpoint'])
     init_from_checkpoint = tf.train.init_from_checkpoint if config['init_checkpoint'].endswith('ckpt') else load_from_pytorch_checkpoint
     init_from_checkpoint(config['init_checkpoint'], assignment_map)
+
+    """
     print("**** Trainable Variables ****")
     for var in tvars:
       init_string = ""
@@ -67,7 +70,7 @@ class CorefModel(object):
       # tf.logging.info("  name = %s, shape = %s%s", var.name, var.shape,
                       # init_string)
       print("  name = %s, shape = %s%s" % (var.name, var.shape, init_string))
-
+    """
     num_train_steps = int(
                     self.config['num_docs'] * self.config['num_epochs'])
     num_warmup_steps = int(num_train_steps * 0.1)
@@ -534,7 +537,12 @@ class CorefModel(object):
       num_words = sum(tensorized_example[2].sum() for tensorized_example, _ in self.eval_data)
       print("Loaded {} eval examples.".format(len(self.eval_data)))
 
-  def evaluate(self, session, global_step=None, official_stdout=False, keys=None, eval_mode=False):
+  """ This evaluate function is modified to take in cached results in npy array"""
+  def evaluate(self, session, global_step=None, official_stdout=False,
+               keys=None, eval_mode=False, to_npy=None, from_npy=None,
+               rsa_model=None):
+    assert not (to_npy is not None and from_npy is not None), "cannot set both to_npy and from_npy to be none!"
+
     self.load_eval_data()
 
     coref_predictions = {}
@@ -543,28 +551,81 @@ class CorefModel(object):
     doc_keys = []
     num_evaluated= 0
 
+    if to_npy:
+      data_dicts = []
+    if from_npy:
+      with open(from_npy, "rb") as f:
+        from_npy_dict = np.load(f)
+        data_dicts = from_npy_dict.item().get("data_dicts")
+
     for example_num, (tensorized_example, example) in enumerate(self.eval_data):
       _, _, _, _, _, _, gold_starts, gold_ends, _, _ = tensorized_example
-      feed_dict = {i:t for i,t in zip(self.input_tensors, tensorized_example)}
-      # if tensorized_example[0].shape[0] <= 9:
-      if keys is not None and example['doc_key'] not in keys:
-        # print('Skipping...', example['doc_key'], tensorized_example[0].shape)
-        continue
-      doc_keys.append(example['doc_key'])
-      loss, (candidate_starts, candidate_ends, candidate_mention_scores, top_span_starts, top_span_ends, top_antecedents, top_antecedent_scores) = session.run([self.loss, self.predictions], feed_dict=feed_dict)
+
+      if from_npy is None:
+        feed_dict = {i:t for i,t in zip(self.input_tensors, tensorized_example)}
+        # if tensorized_example[0].shape[0] <= 9:
+        if keys is not None and example['doc_key'] not in keys:
+          # print('Skipping...', example['doc_key'], tensorized_example[0].shape)
+          continue
+        doc_keys.append(example['doc_key'])
+        loss, (candidate_starts, candidate_ends, candidate_mention_scores,
+               top_span_starts, top_span_ends,
+               top_antecedents, top_antecedent_scores) = \
+          session.run([self.loss, self.predictions], feed_dict=feed_dict)
+      else:
+        data_dict = data_dicts[example_num]
+        example = data_dict["example"]
+
+        if keys is not None and example['doc_key'] not in keys:
+          # print('Skipping...', example['doc_key'], tensorized_example[0].shape)
+          continue
+        doc_keys.append(example['doc_key'])
+
+        tensorized_example = data_dict["tensorized_example"]
+        loss = data_dict["loss"]
+        top_span_starts = data_dict["top_span_starts"]
+        top_span_ends = data_dict["top_span_ends"]
+        top_antecedents = data_dict["top_antecedents"]
+        top_antecedent_scores = data_dict["top_antecedent_scores"]
+
       # losses.append(session.run(self.loss, feed_dict=feed_dict))
       losses.append(loss)
+
+      if example_num == 0 and rsa_model is not None:
+          rsa_model.l1(example, top_span_starts, top_span_ends, top_antecedents, top_antecedent_scores)
+          return
+
+      if to_npy:
+          data_dict = {
+              "example_num": example_num,
+              "tensorized_example": tensorized_example,
+              "example": example,
+              "top_span_starts": top_span_starts,
+              "top_span_ends": top_span_ends,
+              "top_antecedents": top_antecedents,
+              "top_antecedent_scores": top_antecedent_scores,
+              "loss": loss,
+          }
+          data_dicts.append(data_dict)
+
       predicted_antecedents = self.get_predicted_antecedents(top_antecedents, top_antecedent_scores)
       coref_predictions[example["doc_key"]] = self.evaluate_coref(top_span_starts, top_span_ends, predicted_antecedents, example["clusters"], coref_evaluator)
+
       if example_num % 10 == 0:
         print("Evaluated {}/{} examples.".format(example_num + 1, len(self.eval_data)))
 
     summary_dict = {}
+    if to_npy:
+      dict_to_npy = {"data_dicts": data_dicts}
+
     if eval_mode:
       conll_results = conll.evaluate_conll(self.config["conll_eval_path"], coref_predictions, self.subtoken_maps, official_stdout )
       average_f1 = sum(results["f"] for results in conll_results.values()) / len(conll_results)
       summary_dict["Average F1 (conll)"] = average_f1
+      if to_npy:
+        dict_to_npy["Average F1 (conll)"] = average_f1
       print("Average F1 (conll): {:.2f}%".format(average_f1))
+
 
     p,r,f = coref_evaluator.get_prf()
     summary_dict["Average F1 (py)"] = f
@@ -573,5 +634,12 @@ class CorefModel(object):
     print("Average precision (py): {:.2f}%".format(p * 100))
     summary_dict["Average recall (py)"] = r
     print("Average recall (py): {:.2f}%".format(r * 100))
+
+    if to_npy:
+      dict_to_npy["Average F1 (py)"] = f
+      dict_to_npy["Average precision (py)"] = p
+      dict_to_npy["Average recall (py)"] = r
+      with open(to_npy, "wb") as f_to_npy:
+        np.save(f_to_npy, dict_to_npy)
 
     return util.make_summary(summary_dict), f

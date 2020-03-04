@@ -4,14 +4,15 @@ import numpy as np
 from transformers import GPT2LMHeadModel, GPT2Tokenizer
 
 class CorefRSAModel:
-    def __init__(self, model_dir, device, max_segment_len):
-        # self.tokenizer = GPT2Tokenizer.from_pretrained(model_dir)
-        # model = GPT2LMHeadModel.from_pretrained(model_dir)
-        # model.to(device)
-        # model.eval()
-        # self.model = model
+    def __init__(self, model_dir, device, max_segment_len, anteced_top_k):
+        self.tokenizer = GPT2Tokenizer.from_pretrained(model_dir)
+        model = GPT2LMHeadModel.from_pretrained(model_dir)
+        model.to(device)
+        model.eval()
+        self.model = model
+        self.device = device
         self.max_segment_len = max_segment_len
-        pass
+        self.anteced_top_k = anteced_top_k
 
     def get_sentence_starts(self, sentence_map):
         starts = [0]
@@ -20,6 +21,7 @@ class CorefRSAModel:
             if sentence_map[i] != curr:
                 starts.append(i)
                 curr = sentence_map[i]
+        starts = np.array(starts)
         return starts
 
     def flatten_sentences(self, sentences):
@@ -28,17 +30,51 @@ class CorefRSAModel:
             res += s
         return res
 
-    def get_ctx_start(self, sentence_starts, anaphor_start):
-        for i in range(len(sentence_starts)):
-            if sentence_starts[i] > anaphor_start:
-                anaphor_sent_idx = i-1 # i cannot be 0 in this case, as anaphor_start >= 0 and sentence_starts[0] == 0
-                break
+    def get_ctx_start(self, sentence_starts, anaphor_start, anteced_start):
+        anaphor_sent_idx = np.argmax(sentence_starts > anaphor_start) - 1
+        if anteced_start is not None:
+            anteced_sent_idx = np.argmax(sentence_starts > anteced_start) - 1
 
-        ctx_start_sent_idx = 0
-        while anaphor_start - sentence_starts[ctx_start_sent_idx] > self.max_segment_len:
-            ctx_start_sent_idx += 1
+        if anteced_start is None or anaphor_start - sentence_starts[anteced_sent_idx] <= self.max_segment_len:
+            # make ctx as long as possible under max segment len
+            ctx_start_sent_idx = np.argmax(anaphor_start - sentence_starts <= self.max_segment_len)
+        else:
+            # anteced is very far from anaphor
+            ctx_start_sent_idx = anteced_sent_idx
         return sentence_starts[ctx_start_sent_idx]
 
+    def convert_tokens_to_string(self, tokens):
+        # filter [CLS] and [SEP]
+        tokens = list(filter(lambda x: x != "[CLS]" and x != "[SEP]", tokens))
+
+        res = " ".join(tokens) \
+                 .replace(" ##", "") \
+                 .replace(" [CLS] ", " ") \
+                 .replace(" [SEP] ", " ") \
+                 .strip()
+        res += " <anaphor>"
+        return res
+
+    def top_k_idxs_along_axis1(self, a):
+        idxs = np.argpartition(a, -self.anteced_top_k, axis=1)[:,-self.anteced_top_k:]
+        return idxs
+
+    def get_single_l1_score(self, input_str, anaphor_str):
+        # based off of anagen/evaluate.py
+        input_toks = self.tokenizer.encode(input_str)
+        anaphor_toks = self.tokenizer.encode(anaphor_str)
+        lh_context = torch.tensor(input_toks, dtype=torch.long, device=self.device)
+        generated = lh_context
+
+        with torch.no_grad():
+            inputs = {"input_ids": generated}
+            outputs = self.model(**inputs)
+            print(outputs[0].shape)
+            next_token_logits = outputs[0][-1, :]
+
+    def get_s0_scores(self, input_strs, anaphor_strs):
+        # based off of anagen/evaluate.py
+        for
 
 
     def l1(self, example, top_span_starts, top_span_ends, top_antecedents, top_antecedent_scores):
@@ -68,65 +104,70 @@ class CorefRSAModel:
         print(top_antecedents)
         print("***** top_antecedent_scores")
         print(top_antecedent_scores)
-        """
+
         print(top_span_starts.shape)
         print(top_span_ends.shape)
         print(top_antecedents.shape)
         print("Find first mention with non-null antec")
-        #for i in range(top_antecedents.shape[0]):
-        i = 140
-        anaphor_start = top_span_starts[i]
-        anaphor_end = top_span_ends[i]
-        # anteced_arr_idx = np.argmax(top_antecedent_scores[i]) - 1
+        """
+        # get top k antecedents
+        all_anteced_arr_idxs = self.top_k_idxs_along_axis1(top_antecedent_scores)
+        # get span indeces for each one, null anteced has span idx -1.
+        all_anteced_span_idxs = np.where(all_anteced_arr_idxs != 0,
+            np.take_along_axis(top_antecedents, all_anteced_arr_idxs-1, axis=1), -1)
 
-        #anteced_span_idx = top_antecedents[i][anteced_arr_idx]
-        #anteced_start = int(top_span_starts[anteced_span_idx])
-        #anteced_end = int(top_span_ends[anteced_span_idx])
-        print("anaphor: (%d, %d)" % (anaphor_start, anaphor_end))
-        # print("anteced: (%d, %d)" %  (anteced_start, anteced_end))
-
+        # get bert-style tokens in one single list
+        raw_bert_toks = self.flatten_sentences(example["sentences"])
+        # get starting positions of sentences
         sentence_starts = self.get_sentence_starts(example["sentence_map"])
-        ctx_start = self.get_ctx_start(sentence_starts, anaphor_start)
-        print("ctx_start:", ctx_start)
 
-        flattened_sentences = self.flatten_sentences(example["sentences"])
-        print("[ctx in strings]\n", " ".join(flattened_sentences[ctx_start:anaphor_start]))
-        print("[anaphor in strings]\n", " ".join(flattened_sentences[anaphor_start:anaphor_end]))
+        for anaphor_span_idx in range(top_antecedents.shape[0]):
+            anaphor_start = top_span_starts[anaphor_span_idx]
+            anaphor_end = top_span_ends[anaphor_span_idx]
+            anteced_span_idxs = all_anteced_span_idxs[anaphor_span_idx]
+            print("*******************")
+            print("anaphor %d: (%d, %d) %s" % (anaphor_span_idx, anaphor_start, anaphor_end, " ".join(raw_bert_toks[anaphor_start:anaphor_end+1])))
+            anaphor_toks = raw_bert_toks[anaphor_start:anaphor_end+1]
+            anaphor_str = self.convert_tokens_to_string(anaphor_toks)
 
-        ## obtain string form
+            all_input_strs = []
+            for anteced_span_idx in anteced_span_idxs:
+                if anteced_span_idx >= anaphor_span_idx:
+                    anteced_start = int(top_span_starts[anteced_span_idx])
+                    anteced_end = int(top_span_ends[anteced_span_idx])
+                    print("  invalid anteced %d: (%d, %d) %s" % (anteced_span_idx, anteced_start, anteced_end, " ".join(raw_bert_toks[anteced_start:anteced_end+1])))
+                    continue
 
-        example_sentence_map = example["sentence_map"]
+                elif anteced_span_idx >= 0:
+                    # assume arr idx is the correct ordering of spans by
+                    # start token, and then by length
+                    anteced_start = int(top_span_starts[anteced_span_idx])
+                    anteced_end = int(top_span_ends[anteced_span_idx])
+                    ctx_start = self.get_ctx_start(sentence_starts, anaphor_start, anteced_start)
+                    print("  anteced %d: (%d, %d) %s" % (anteced_span_idx, anteced_start, anteced_end, " ".join(raw_bert_toks[anteced_start:anteced_end+1])))
+                else:
+                    ctx_start = self.get_ctx_start(sentence_starts, anaphor_start, None)
+                    print("  Null anteced")
 
+                ctx_tokens = raw_bert_toks[ctx_start:anaphor_start]
 
-        max_end = top_span_ends[-1]
-        # print("Max end:", max_end)
-        # print("Sentence map:", example_sentence_map)
-        # print("Sentence map len:", len(example_sentence_map))
-        # print("flattened_sentneces:", flattened_sentences)
-        # print("flattened_sentences_len:", len(flattened_sentences))
+                if anteced_span_idx >= 0 and anteced_span_idx < anaphor_span_idx \
+                    and anteced_end < anaphor_start:
+                    # currently ignore nested anaphors
+                    ctx_tokens.insert(anteced_start - ctx_start, "<anteced>")
+                    ctx_tokens.insert(anteced_end - ctx_start + 2, "</anteced>")
+                else:
+                    # temporary measure to indicate null anteced
+                    ctx_tokens = ["<anteced>", "</anteced>"] + ctx_tokens
 
+                input_str = self.convert_tokens_to_string(ctx_tokens)
+                all_input_strs.append(input_str)
 
-        anaphor_sent = example_sentence_map[anaphor_start]
-        anaphor_sent2 = example_sentence_map[anaphor_end]
-        print("anaphor_sent check: %d, %d" % (anaphor_sent, anaphor_sent2))
-
-        # check if any top_span_starts or ends contain [CLS] or [sep]
-        for i in range(len(top_span_starts)):
-            start = top_span_starts[i]
-            end = top_span_ends[i]
-            if flattened_sentences[start] == "[CLS]":
-                print("Start %d is [CLS]!" % start)
-            if flattened_sentences[start-1] == "[CLS]":
-                print("Start %d-1 is [CLS]!" % start)
-            if flattened_sentences[start] == "[SEP]":
-                print("Start %d is [SEP]!" % start)
-            if flattened_sentences[end] == "[CLS]":
-                print("End %d is [CLS]!" % end)
-            if flattened_sentences[end] == "[SEP]":
-                print("End %d is [SEP]!" % end)
-            if flattened_sentences[end+1] == "[SEP]":
-                print("End %d+1 is [SEP]!" % end)
+                # feed into GPT model to get probabilities
+            scores = self.get_single_l1_score(input_str, anaphor_str)
+            return
 
 
 
-        # generate input to model
+            if anaphor_span_idx == 10:
+                return
