@@ -591,9 +591,9 @@ class CorefModel(object):
       # losses.append(session.run(self.loss, feed_dict=feed_dict))
       losses.append(loss)
 
-      if example_num == 0 and rsa_model is not None:
-          rsa_model.l1(example, top_span_starts, top_span_ends, top_antecedents, top_antecedent_scores)
-          return
+      # if example_num == 0 and rsa_model is not None:
+      #     rsa_model.l1(example, top_span_starts, top_span_ends, top_antecedents, top_antecedent_scores)
+      #     return
 
       if to_npy:
           data_dict = {
