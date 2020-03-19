@@ -221,6 +221,7 @@ class CorefRSAModel:
 
             # feed into GPT model to get probabilities
             scores = self.get_s0_scores(all_input_strs, anaphor_str) #[batch]
+            top_antecedent_scores[anaphor_span_idx][anteced_valid_arr_idxs] += scores
 
             # debug to see scores
             # self._log_debug("anteced stats: span_idx (start) str: s0_score/score_before/score_after")
@@ -232,36 +233,33 @@ class CorefRSAModel:
             #         span_idx, start_idx, antecstr,
             #         scores[i], score_before, score_after))
 
-            old_scores = top_antecedent_scores[anaphor_span_idx][anteced_valid_arr_idxs]
-            prev_best_anteced_i = np.argmax(old_scores)
-            new_scores = top_antecedent_scores[anaphor_span_idx][anteced_valid_arr_idxs] + scores
-            new_best_anteced_i = np.argmax(new_scores)
-            if new_best_anteced_i != prev_best_anteced_i:
-                self._log_debug("*******************")
-                self._log_debug("anaphor %d: (%d, %d) %s" % (anaphor_span_idx, anaphor_start, anaphor_end, " ".join(raw_bert_toks[anaphor_start:anaphor_end+1])))
-                self._log_debug("  BEST ANTECED CHANGED:")
-                self._log_debug("  stats: span_idx (start) str: s0_score/score_before/score_after")
-                self._log_debug("  prev_best: %d (%d) %.2f/%.2f/%.2f %s\n[context] %s" % (
-                    all_anteced_valid_span_idxs[prev_best_anteced_i],
-                    all_anteced_starts[prev_best_anteced_i],
-                    old_scores[prev_best_anteced_i],
-                    scores[prev_best_anteced_i],
-                    new_scores[prev_best_anteced_i],
-                    all_anteced_strs[prev_best_anteced_i],
-                    all_input_strs[prev_best_anteced_i]
-                ))
-                self._log_debug("  new_best: %d (%d) %.2f/%.2f/%.2f %s\n[context] %s" % (
-                    all_anteced_valid_span_idxs[new_best_anteced_i],
-                    all_anteced_starts[new_best_anteced_i],
-                    old_scores[new_best_anteced_i],
-                    scores[new_best_anteced_i],
-                    new_scores[new_best_anteced_i],
-                    all_anteced_strs[new_best_anteced_i],
-                    all_input_strs[new_best_anteced_i]
-                ))
+            # old_scores = top_antecedent_scores[anaphor_span_idx][anteced_valid_arr_idxs]
+            # prev_best_anteced_i = np.argmax(old_scores)
+            # new_scores = top_antecedent_scores[anaphor_span_idx][anteced_valid_arr_idxs] + scores
+            # new_best_anteced_i = np.argmax(new_scores)
+            # if new_best_anteced_i != prev_best_anteced_i:
+            #     self._log_debug("*******************")
+            #     self._log_debug("anaphor %d: (%d, %d) %s" % (anaphor_span_idx, anaphor_start, anaphor_end, " ".join(raw_bert_toks[anaphor_start:anaphor_end+1])))
+            #     self._log_debug("  BEST ANTECED CHANGED:")
+            #     self._log_debug("  stats: span_idx (start) str: s0_score/score_before/score_after")
+            #     self._log_debug("  prev_best: %d (%d) %.2f/%.2f/%.2f %s\n[context] %s" % (
+            #         all_anteced_valid_span_idxs[prev_best_anteced_i],
+            #         all_anteced_starts[prev_best_anteced_i],
+            #         old_scores[prev_best_anteced_i],
+            #         scores[prev_best_anteced_i],
+            #         new_scores[prev_best_anteced_i],
+            #         all_anteced_strs[prev_best_anteced_i],
+            #         all_input_strs[prev_best_anteced_i]
+            #     ))
+            #     self._log_debug("  new_best: %d (%d) %.2f/%.2f/%.2f %s\n[context] %s" % (
+            #         all_anteced_valid_span_idxs[new_best_anteced_i],
+            #         all_anteced_starts[new_best_anteced_i],
+            #         old_scores[new_best_anteced_i],
+            #         scores[new_best_anteced_i],
+            #         new_scores[new_best_anteced_i],
+            #         all_anteced_strs[new_best_anteced_i],
+            #         all_input_strs[new_best_anteced_i]
+            #     ))
 
 
-            # top_antecedent_scores[anaphor_span_idx][anteced_valid_arr_idxs] += scores
-
-
-        return None
+        return top_antecedent_scores

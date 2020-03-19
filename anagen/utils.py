@@ -3,7 +3,7 @@ import numpy as np
 
 import json
 import torch
-
+import argparse
 
 def prune_antec_scores(top_antecedents, top_antecedent_scores, top_k):
     idxs = np.argpartition(top_antecedent_scores, top_k, axis=1)[:,-top_k:]
@@ -13,3 +13,24 @@ def prune_antec_scores(top_antecedents, top_antecedent_scores, top_k):
     pruned_top_antecedents = np.take_along_axis(top_antecedents, idxs, axis=1)
 
     return pruned_top_antecedents, pruned_top_antecedent_scores
+
+# copied from util.flatten()
+def flatten(l):
+  return [item for sublist in l for item in sublist]
+
+def parse_args(parser):
+    # data input
+    parser.add_argument("--jsonlines_file", type=str)
+    parser.add_argument("--train_batch_size", type=int, default=16)
+    parser.add_argument("--max_segment_len", type=int, default=512)
+
+    # gpt2 model settings
+    parser.add_argument("--gpt2_model_dir", type=str, default=None)
+
+    # training settings
+    # parser.add_argument("--train_batch_size", type=int, default=1)
+    parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--num_train_epochs", type=int, default=1)
+
+
+    return parser.parse_args()

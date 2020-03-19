@@ -5,6 +5,7 @@ from __future__ import print_function
 import os
 import random
 import math
+import time
 import json
 import threading
 import numpy as np
@@ -19,7 +20,7 @@ from bert import tokenization
 from bert import modeling
 from pytorch_to_tf import load_from_pytorch_checkpoint
 
-from anagen.model import CorefRSAModel
+from anagen.rsa_model import CorefRSAModel
 
 class CorefModel(object):
   def __init__(self, config):
@@ -258,13 +259,13 @@ class CorefModel(object):
       use_one_hot_embeddings=False,
       scope='bert')
     all_encoder_layers = model.get_all_encoder_layers()
-    mention_doc = model.get_sequence_output()
+    mention_doc = model.get_sequence_output() # [batch_size, seq_length, hidden_size]
 
     self.dropout = self.get_dropout(self.config["dropout_rate"], is_training)
 
     num_sentences = tf.shape(mention_doc)[0]
     max_sentence_length = tf.shape(mention_doc)[1]
-    mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask)
+    mention_doc = self.flatten_emb_by_sentence(mention_doc, input_mask) # [num_words, hidden_size]
     num_words = util.shape(mention_doc, 0)
     antecedent_doc = mention_doc
 
@@ -350,6 +351,12 @@ class CorefModel(object):
 
 
   def get_span_emb(self, head_emb, context_outputs, span_starts, span_ends):
+    # (in line 286)
+    # head_emb: [num_words, hidden_size]
+    # context_outputs: [num_words, hidden_size]
+    # span_starts: [num_candidates]
+    # span_ends: [num_candidates]
+
     span_emb_list = []
 
     span_start_emb = tf.gather(context_outputs, span_starts) # [k, emb]
@@ -362,7 +369,8 @@ class CorefModel(object):
 
     if self.config["use_features"]:
       span_width_index = span_width - 1 # [k]
-      span_width_emb = tf.gather(tf.get_variable("span_width_embeddings", [self.config["max_span_width"], self.config["feature_size"]], initializer=tf.truncated_normal_initializer(stddev=0.02)), span_width_index) # [k, emb]
+      span_width_emb = tf.gather(tf.get_variable("span_width_embeddings", [self.config["max_span_width"], self.config["feature_size"]], initializer=tf.truncated_normal_initializer(stddev=0.02)),
+                                 span_width_index) # [k, emb]
       span_width_emb = tf.nn.dropout(span_width_emb, self.dropout)
       span_emb_list.append(span_width_emb)
 
@@ -549,7 +557,8 @@ class CorefModel(object):
     coref_evaluator = metrics.CorefEvaluator()
     losses = []
     doc_keys = []
-    num_evaluated= 0
+    num_evaluated = 0
+    total_time = 0
 
     if to_npy:
       data_dicts = []
@@ -591,9 +600,14 @@ class CorefModel(object):
       # losses.append(session.run(self.loss, feed_dict=feed_dict))
       losses.append(loss)
 
-      # if example_num == 0 and rsa_model is not None:
-      #     rsa_model.l1(example, top_span_starts, top_span_ends, top_antecedents, top_antecedent_scores)
-      #     return
+      if rsa_model is not None:
+        print("Running l1 for sentence %d" % example_num)
+        start_time = time.time()
+        top_antecedent_scores = rsa_model.l1(example, top_span_starts, top_span_ends, top_antecedents, top_antecedent_scores)
+        duration = time.time() - start_time
+        print("Finished sentence %d, took %.2f s" % (example_num, duration))
+        total_time += duration
+        num_evaluated += 1
 
       if to_npy:
           data_dict = {
@@ -641,5 +655,8 @@ class CorefModel(object):
       dict_to_npy["Average recall (py)"] = r
       with open(to_npy, "wb") as f_to_npy:
         np.save(f_to_npy, dict_to_npy)
+
+    if rsa_model:
+        print("Ran rsa on %d sentences, avg time per sentence %.2f s" % num_evaluated, total_time / num_evaluated)
 
     return util.make_summary(summary_dict), f

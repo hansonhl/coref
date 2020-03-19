@@ -45,7 +45,7 @@ if __name__ == "__main__":
   device = torch.device("cuda" if "GPU" in os.environ and torch.cuda.is_available() else "cpu")
 
   if args.use_l1:
-    rsa_model = CorefRSAModel(args.anagen_model_dir, device)
+    rsa_model = CorefRSAModel(args.anagen_model_dir, device=device, max_segment_len=80, anteced_top_k=5)
 
 
   with tf.Session() as session:
