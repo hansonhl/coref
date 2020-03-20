@@ -305,7 +305,8 @@ class CorefModel(object):
     top_span_emb = tf.gather(candidate_span_emb, top_span_indices) # [k, emb]
     top_span_cluster_ids = tf.gather(candidate_cluster_ids, top_span_indices) # [k]
     top_span_mention_scores = tf.gather(candidate_mention_scores, top_span_indices) # [k]
-    genre_emb = tf.gather(tf.get_variable("genre_embeddings", [len(self.genres), self.config["feature_size"]], initializer=tf.truncated_normal_initializer(stddev=0.02)), genre) # [emb]
+    genre_emb = tf.gather(tf.get_variable("genre_embeddings", [len(self.genres), self.config["feature_size"]], initializer=tf.truncated_normal_initializer(stddev=0.02)),
+                          genre) # [emb]
     if self.config['use_metadata']:
       speaker_ids = self.flatten_emb_by_sentence(speaker_ids, input_mask)
       top_span_speaker_ids = tf.gather(speaker_ids, top_span_starts) # [k]i
@@ -314,7 +315,9 @@ class CorefModel(object):
 
 
     dummy_scores = tf.zeros([k, 1]) # [k, 1]
-    top_antecedents, top_antecedents_mask, top_fast_antecedent_scores, top_antecedent_offsets = self.coarse_to_fine_pruning(top_span_emb, top_span_mention_scores, c)
+    top_antecedents,
+    +
+    _mask, top_fast_antecedent_scores, top_antecedent_offsets = self.coarse_to_fine_pruning(top_span_emb, top_span_mention_scores, c)
     num_segs, seg_len = util.shape(input_ids, 0), util.shape(input_ids, 1)
     word_segments = tf.tile(tf.expand_dims(tf.range(0, num_segs), 1), [1, seg_len])
     flat_word_segments = tf.boolean_mask(tf.reshape(word_segments, [-1]), tf.reshape(input_mask, [-1]))

@@ -45,8 +45,7 @@ def train(args, train_dataset, model):
         # epoch_iterator = tqdm(train_dataloader, desc="Iteration")
         for step, batch in enumerate(train_dataloader):
             # TODO: transfer to device
-            inputs = batch
-            return inputs
+            outputs = model(batch)
 
             # model.train()
             # outputs = model(inputs)
