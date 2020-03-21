@@ -171,7 +171,6 @@ class AnagenDataset(Dataset):
                                        -1, -1,
                                        anaphor_start, anaphor_end,
                                        ctx_seg_start_idx, ctx_seg_end_idx)
-                    print(ex)
                     anagen_examples.append(ex)
                 else:
                     for anteced_i in range(anaphor_i):
@@ -183,7 +182,6 @@ class AnagenDataset(Dataset):
                                            anteced_start, anteced_end,
                                            anaphor_start, anaphor_end,
                                            ctx_seg_start_idx, ctx_seg_end_idx)
-                        print(ex)
                         anagen_examples.append(ex)
 
         self.docs_to_examples[doc_key] = anagen_examples
@@ -291,6 +289,22 @@ class AnagenDataset(Dataset):
 
         return ctx_ids, ctx_set_idxs, anteced_starts_in_ctx, anteced_ends_in_ctx, anaphor_ids
 
+""" Processes data retrieved from Dataset.__getitem__, converts everything into
+    tensors. Returns a dictionary containing content of batch:
+    'ctx_ids': [num_ctxs, max_ctx_len] id form of context tokens
+    'ctx_ids_padding_mask': [num_ctxs, max_ctx_len] mask indicating length
+        variation in ctx, to pass into GPT2 model
+    'ctx_lens': [num_ctxs,] length of ctxs
+    'ctx_set_idxs': [batch_size,] the corresponding ctx for each example
+    'anteced_starts': [batch_size,] starting idxs of antecedents, indexed
+        into each respective corresponding ctx
+    'anteced_ends': [batch_size,] end idxs of antecedents
+    'anaphor_ids': [batch_size, max_anaphor_len] id form of gold anaphor tokens
+    'anaphor_ids_padding_mask': [batch_size, max_anaphor_len] mask
+        indicating length variation in ctx, to pass into GPT2 model
+    'anaphor_lens': [batch_size,] lengths of gold anpahors
+    'scramble_idxs': [batch_size,] tensor of indices that is applied to sort
+        examples in order of decreasing anaphor length."""
 def collate(batch):
     ctx_ids, ctx_set_idxs, anteced_starts_in_ctx, anteced_ends_in_ctx, \
         anaphor_ids = batch[0]

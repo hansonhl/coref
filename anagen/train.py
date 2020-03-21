@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 
 # based on transformers/run_lm_finetuning
 def train(args, train_dataset, model):
+    if args.random_seed >= 0:
+        torch.manual_seed(opts.random_seed)
+
     train_sampler = SequentialSampler(train_dataset)
     train_dataloader = DataLoader(train_dataset, sampler=train_sampler,
                                   batch_size=DEFAULT_TRAIN_BATCH_SIZE,
@@ -46,6 +49,9 @@ def train(args, train_dataset, model):
         for step, batch in enumerate(train_dataloader):
             # TODO: transfer to device
             outputs = model(batch)
+
+            if step == 5:
+                return
 
             # model.train()
             # outputs = model(inputs)

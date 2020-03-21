@@ -28,9 +28,15 @@ def parse_args(parser):
     parser.add_argument("--gpt2_model_dir", type=str, default=None)
 
     # training settings
-    # parser.add_argument("--train_batch_size", type=int, default=1)
+    parser.add_argument("--random_seed", type=int, default=39)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--num_train_epochs", type=int, default=1)
+
+    # model settings
+    parser.add_argument("--gpt2_hidden_size", type=int, default=768)
+    parser.add_argument("--use_metadata", action="store_true")
+    parser.add_argument("--param_init_stdev", type=float, default=0.1)
+    parser.add_argument("--rnn_num_layers", type=int, default=1)
 
 
     return parser.parse_args()
