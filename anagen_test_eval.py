@@ -3,7 +3,7 @@ import torch
 import argparse
 import logging
 from anagen.model import CorefRSAModel
-from anagen.eval import test_eval
+from anagen.analysis import test_eval
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

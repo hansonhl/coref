@@ -215,6 +215,7 @@ class AnagenDataset(Dataset):
         ctx_starts = [doc.segment_starts[ex.ctx_seg_start_idx] for ex in batch]
         anteced_starts = [ex.anteced_start for ex in batch]
         anteced_ends = [ex.anteced_end for ex in batch]
+        anaphor_starts = [ex.anaphor_start for ex in batch]
 
         # prepare anaphors in id form, and prepare ctx_set:
         # for all ctx ranges (denoted by tuples) in batch, remove duplicates to
@@ -253,32 +254,31 @@ class AnagenDataset(Dataset):
             # print("[anteced]", self.get_span_toks(doc, s, e), "[anaphor]", self.decode(anaphor_id))
 
         self.batches.append([doc_key, ctx_set, ctx_set_idxs, ctx_starts,
-                             anteced_starts, anteced_ends, anaphor_ids])
+                             anteced_starts, anteced_ends, anaphor_starts, anaphor_ids])
 
     def __len__(self):
         return len(self.batches)
 
-    """ finish preparation of batch. This part of code is separated from """
+    """ finish preparation of batch """
     def __getitem__(self, idx):
-        doc_key, ctx_set, ctx_set_idxs, ctx_starts, \
-            anteced_starts, anteced_ends, anaphor_ids = self.batches[idx]
+        doc_key, ctx_set, ctx_set_idxs, ctx_starts, anteced_starts, anteced_ends, \
+             anaphor_starts, anaphor_ids = self.batches[idx]
         doc = self.documents[doc_key]
 
         # obtain full id form of ctx
         ctx_ids = [flatten(doc.segment_ids[start_i:end_i+1]) for start_i, end_i in ctx_set]
-        anteced_starts_in_ctx = []
-        anteced_ends_in_ctx = []
-        for ctx_start, anteced_start, anteced_end in \
-            zip(ctx_starts, anteced_starts, anteced_ends):
-            # get idx of anteced with respect to ctx.
-            # if anteced is not in context, then it is too far away from
-            # anaphor treat as null anteced. Again, assume spans do not cross
-            # segment boundaries
-            anteced_start_in_ctx = max(-1, anteced_start - ctx_start)
-            anteced_end_in_ctx = max(-1, anteced_end - ctx_start)
-            assert not (anteced_start_in_ctx == -1 ^ anteced_end_in_ctx == -1)
-            anteced_starts_in_ctx.append(anteced_start_in_ctx)
-            anteced_ends_in_ctx.append(anteced_end_in_ctx)
+
+        # transform everything else into tensor form.
+        # All below have dim [batch_size,]
+        ctx_starts = torch.tensor(ctx_starts)
+        ctx_set_idxs = torch.tensor(ctx_set_idxs)
+        anteced_starts = torch.tensor(anteced_starts)
+        anteced_ends = torch.tensor(anteced_ends)
+        anaphor_starts = torch.tensor(anaphor_starts)
+
+        anteced_starts_in_ctx = torch.clamp(anteced_starts - ctx_starts, min=-1)
+        anteced_ends_in_ctx = torch.clamp(anteced_ends - ctx_starts, min=-1)
+        anaphor_starts_in_ctx = anaphor_starts - ctx_starts
 
         # for ctx_range, ctx_id in zip(ctx_set, ctx_ids): #ok
         #     print("ctx_idx_start_end",ctx_range)
@@ -287,7 +287,8 @@ class AnagenDataset(Dataset):
         # for s, e, anaphor_id in zip(anteced_starts_in_ctx, anteced_ends_in_ctx, anaphor_ids):
             # print("[anteced]", self.get_span_toks(doc, s, e), "[anaphor]", self.decode(anaphor_id))
 
-        return ctx_ids, ctx_set_idxs, anteced_starts_in_ctx, anteced_ends_in_ctx, anaphor_ids
+        return ctx_ids, ctx_set_idxs, anteced_starts_in_ctx, anteced_ends_in_ctx, \
+            anaphor_starts_in_ctx, anaphor_ids
 
 """ Processes data retrieved from Dataset.__getitem__, converts everything into
     tensors. Returns a dictionary containing content of batch:
@@ -307,15 +308,15 @@ class AnagenDataset(Dataset):
         examples in order of decreasing anaphor length."""
 def collate(batch):
     ctx_ids, ctx_set_idxs, anteced_starts_in_ctx, anteced_ends_in_ctx, \
-        anaphor_ids = batch[0]
+        anaphor_starts_in_ctx, anaphor_ids = batch[0]
     ctx_lens = torch.tensor([len(ctx_id) for ctx_id in ctx_ids])
 
     # just pad ctxs, don't sort them
     ctx_ids = [torch.tensor(ctx) for ctx in ctx_ids] # convert to tensor form
     padded_ctx_ids = torch.nn.utils.rnn.pad_sequence(ctx_ids, batch_first=True,
                                                      padding_value=GPT2_EOS_TOKEN_ID)
-    ctx_ids_padding_mask = (torch.arange(padded_ctx_ids.shape[1])[None, :] < ctx_lens[:, None]) \
-                           .type(torch.FloatTensor)
+    ctx_ids_padding_mask = (torch.arange(padded_ctx_ids.shape[1])[None, :] \
+                            < ctx_lens[:, None]).type(torch.FloatTensor)
 
     # prepare anaphor ids
     anaphor_lens = torch.tensor([len(anaphor_id) for anaphor_id in anaphor_ids])
@@ -324,13 +325,14 @@ def collate(batch):
     padded_anaphor_ids = torch.nn.utils.rnn.pad_sequence(sorted_anaphor_ids, batch_first=True,
                                                          padding_value=GPT2_EOS_TOKEN_ID)
     anaphor_ids_padding_mask = (torch.arange(padded_anaphor_ids.shape[1])[None, :] \
-                                < sorted_anaphor_lens[:, None]).type(torch.FloatTensor) \
-    # probably don't need the last one
+                                < sorted_anaphor_lens[:, None]).type(torch.FloatTensor)
+    # probably don't need this one
 
     # prepare anteced
-    sorted_anteced_starts = torch.tensor([anteced_starts_in_ctx[i] for i in scramble_idxs])
-    sorted_anteced_ends = torch.tensor([anteced_ends_in_ctx[i] for i in scramble_idxs])
-    sorted_ctx_set_idxs = torch.tensor([ctx_set_idxs[i] for i in scramble_idxs])
+    sorted_ctx_set_idxs = ctx_set_idxs[scramble_idxs]
+    sorted_anteced_starts = anteced_starts_in_ctx[scramble_idxs]
+    sorted_anteced_ends = anteced_ends_in_ctx[scramble_idxs]
+    sorted_anaphor_starts = anaphor_starts_in_ctx[scramble_idxs]
 
     batch_dict = {
         'ctx_ids': padded_ctx_ids, #ok
@@ -339,6 +341,7 @@ def collate(batch):
         'ctx_set_idxs': sorted_ctx_set_idxs,
         'anteced_starts': sorted_anteced_starts,
         'anteced_ends': sorted_anteced_ends,
+        'anaphor_starts': sorted_anaphor_starts,
         'anaphor_ids': padded_anaphor_ids,
         'anaphor_ids_padding_mask': anaphor_ids_padding_mask,
         'anaphor_lens': sorted_anaphor_lens,

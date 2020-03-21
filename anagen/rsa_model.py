@@ -2,6 +2,7 @@ import torch
 import numpy as np
 import logging
 import tqdm
+from anagen.dataset import GPT2_EOS_TOKEN_ID
 from transformers import AnagenGPT2LMHeadModel, GPT2Tokenizer
 
 class CorefRSAModel:
