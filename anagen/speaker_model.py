@@ -74,7 +74,8 @@ class LiteralSpeakerModel(nn.Module):
         # [1+num_ctxs*max_ctx_len, gpt2_hidden_size]
 
         # get antecedent embeddings
-        flat_idx_offset = (torch.arange(ctx_ids.shape[0]) * ctx_ids.shape[1])[ctx_set_idxs] # [batch_size,]
+        flat_idx_offset = (torch.arange(ctx_ids.shape[0], device=self.device) \
+                           * ctx_ids.shape[1])[ctx_set_idxs] # [batch_size,]
         flat_anteced_start_idxs = flat_idx_offset + anteced_starts + 1 # [batch_size,]
         flat_anteced_end_idxs = flat_idx_offset + anteced_ends + 1 # [batch_size,]
         flat_anteced_start_idxs[anteced_starts == -1] = 0
@@ -114,9 +115,9 @@ class LiteralSpeakerModel(nn.Module):
     def loss(self, logits, anaphor_ids, mask):
         # logits: [batch_size, max_anaphor_len+1, vocab_size]
         # anaphor_ids, mask: [batch_size, max_anaphor_len]
-        for example in anaphor_ids:
-            example = example.tolist()
-            print(debug_tokenizer.convert_ids_to_tokens(example))
+        # for example in anaphor_ids:
+        #     example = example.tolist()
+        #     print(debug_tokenizer.convert_ids_to_tokens(example))
 
         batch_size = logits.shape[0]
 
@@ -124,9 +125,9 @@ class LiteralSpeakerModel(nn.Module):
         end_toks = self.end_tok[None].repeat(batch_size, 1)
         gold_anaphor_ids = torch.cat((anaphor_ids, end_toks), 1) # [batch_size, max_len+1]
 
-        for example in gold_anaphor_ids:
-            example = example.tolist()
-            print(debug_tokenizer.convert_ids_to_tokens(example))
+        # for example in gold_anaphor_ids:
+        #     example = example.tolist()
+        #     print(debug_tokenizer.convert_ids_to_tokens(example))
 
         # adjust mask to include start token
         mask = torch.cat((torch.ones(batch_size, 1, device=self.device), mask), 1).bool()

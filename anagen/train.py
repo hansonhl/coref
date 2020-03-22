@@ -41,7 +41,7 @@ def train(args, model, train_dataset, eval_dataset,):
 
     train_iterator = tqdm.trange(int(args.num_train_epochs), desc="Epoch")
     global_step = 0
-    for _ in train_iterator:
+    for epoch in train_iterator:
         for step, batch in enumerate(train_dataloader):
             batch_to_device(batch, device)
             model.zero_grad()
@@ -57,12 +57,23 @@ def train(args, model, train_dataset, eval_dataset,):
                 print("  step %d, batch train loss = %.3f" % (global_step, loss))
                 eval_results = evaluate(args, eval_dataset, model)
                 # TODO: add tensorboard writer functionality
-                # TODO: add model saving functionality
+
+                if args.model_save_path:
+                    print("  saving model to %s" % args.model_save_path)
+                    model_checkpoint = {
+                        "args": args,
+                        "epoch": epoch,
+                        "step_in_epoch": step,
+                        "global_step": global_step,
+                        "model_state_dict": model.state_dict(), # just save everything for now
+                        "optimizer_state_dict": optimizer.state_dict()
+                    }
+                    torch.save(model_checkpoint, args.model_save_path)
 
 
 def batch_to_device(batch, device):
     for k, v in batch.items():
-        if torch.istensor(v):
+        if torch.is_tensor(v):
             batch[k] = v.to(device)
     return batch
 

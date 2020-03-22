@@ -24,6 +24,9 @@ def parse_args(parser):
     parser.add_argument("--train_batch_size", type=int, default=16)
     parser.add_argument("--max_segment_len", type=int, default=512)
 
+    # where to save model
+    parser.add_argument("--model_save_path", type=str)
+
     # gpt2 model settings
     parser.add_argument("--gpt2_model_dir", type=str, default=None)
 
@@ -32,6 +35,7 @@ def parse_args(parser):
     parser.add_argument("--random_seed", type=int, default=39393)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--num_train_epochs", type=int, default=1)
+    parser.add_argument("--eval_and_save_steps", type=int, default=50)
 
     # model settings
     parser.add_argument("--gpt2_hidden_size", type=int, default=768)
