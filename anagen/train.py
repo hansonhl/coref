@@ -53,7 +53,7 @@ def train(args, model, train_dataset, eval_dataset):
             model.zero_grad()
             model.train()
 
-            res_dict = model(batch, calculate_ppl=(global_step + 1) % args.train_log_steps == 0)
+            res_dict = model(batch)
             loss = res_dict["loss"]
 
             loss.backward()
@@ -100,7 +100,7 @@ def evaluate(args, model, eval_dataset):
     for step, batch in enumerate(eval_dataloader):
         with torch.no_grad():
             batch = batch_to_device(batch, device)
-            res_dict = model(batch, calculate_ppl=True)
+            res_dict = model(batch)
             eval_loss += res_dict["loss"].item() * num_toks
             num_toks += res_dict["num_toks"].item()
 
