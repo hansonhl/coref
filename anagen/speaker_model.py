@@ -16,7 +16,6 @@ class LiteralSpeakerModel(nn.Module):
         self.rnn_hidden_size = self.anteced_emb_size + self.ctx_emb_size
 
         self.use_metadata = args.use_metadata
-        self.use_position_embeddings = args.use_position_embeddings
         if args.use_metadata:
             self.rnn_hidden_size += args.anteced_len_emb_size + args.distance_emb_size
 
@@ -24,7 +23,6 @@ class LiteralSpeakerModel(nn.Module):
             if args.gpt2_model_dir else "gpt2")
 
         self.token_embedding = self.gpt2_model.wte
-        self.position_embedding = self.gpt2_model.wpe
         self.vocab_size = self.gpt2_model.wte.num_embeddings
 
         self.rnn = nn.GRU(input_size=args.gpt2_hidden_size,
@@ -45,16 +43,15 @@ class LiteralSpeakerModel(nn.Module):
     def unfreeze_gpt2(self):
         pass
 
-    def forward(self, batch, calculate_loss=True):
+    def forward(self, batch):
         input_repr_embs = self.encode(batch) # [batch_size, gpt2_hidden_size * 3]
-        scores = self.decode(input_repr_embs, batch["anaphor_ids"]) # [batch_size, max_len+1, vocab_size]
+        logits = self.decode(input_repr_embs, batch["anaphor_ids"]) # [batch_size, max_len+1, vocab_size]
 
-        if calculate_loss:
-            loss = self.loss(scores, batch["anaphor_ids"], batch["anaphor_ids_padding_mask"])
-            return scores, loss
-        else:
-            return scores
-
+        return {
+            "logits": logits,
+            "loss": self.loss(logits, batch["anaphor_ids"], batch["anaphor_ids_padding_mask"]),
+            "num_toks": self.num_toks(batch["anaphor_ids_padding_mask"])
+        }
 
     def encode(self, batch):
         ctx_ids = batch["ctx_ids"] # [num_ctx, max_ctx_len]
@@ -98,9 +95,6 @@ class LiteralSpeakerModel(nn.Module):
         ctx_and_anteced_embs = ctx_and_anteced_embs.unsqueeze(0) # [1, batch_size, rnn_hidden_size]
         anaphor_embs = self.token_embedding(prev_anaphor_ids) # [batch_size, max_len, gpt2_hidden_size]
 
-        if self.use_position_embeddings:
-            anaphor_embs += self.position_embedding(prev_anaphor_ids)
-
         # append start token embedding to each example in batch
         anaphor_start_embs = self.anaphor_start_emb[None, None, :] # [1, 1, gpt2_hidden_size]
         anaphor_start_embs = anaphor_start_embs.repeat(prev_anaphor_ids.shape[0], 1, 1) # [batch_size, 1, gpt2_hidden_size]
@@ -115,19 +109,11 @@ class LiteralSpeakerModel(nn.Module):
     def loss(self, logits, anaphor_ids, mask):
         # logits: [batch_size, max_anaphor_len+1, vocab_size]
         # anaphor_ids, mask: [batch_size, max_anaphor_len]
-        # for example in anaphor_ids:
-        #     example = example.tolist()
-        #     print(debug_tokenizer.convert_ids_to_tokens(example))
-
         batch_size = logits.shape[0]
 
         # append end of sentence token to gold ids
         end_toks = self.end_tok[None].repeat(batch_size, 1)
         gold_anaphor_ids = torch.cat((anaphor_ids, end_toks), 1) # [batch_size, max_len+1]
-
-        # for example in gold_anaphor_ids:
-        #     example = example.tolist()
-        #     print(debug_tokenizer.convert_ids_to_tokens(example))
 
         # adjust mask to include start token
         mask = torch.cat((torch.ones(batch_size, 1, device=self.device), mask), 1).bool()
@@ -144,3 +130,9 @@ class LiteralSpeakerModel(nn.Module):
 
         loss = self.loss_fxn(logits, gold_anaphor_ids)
         return loss
+
+    def num_toks(self, mask):
+        batch_size = mask.shape[0]
+        # adjust mask to include start token
+        mask = torch.cat((torch.ones(batch_size, 1, device=self.device), mask), 1).bool()
+        return mask.sum()

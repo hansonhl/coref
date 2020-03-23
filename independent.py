@@ -315,9 +315,7 @@ class CorefModel(object):
 
 
     dummy_scores = tf.zeros([k, 1]) # [k, 1]
-    top_antecedents,
-    +
-    _mask, top_fast_antecedent_scores, top_antecedent_offsets = self.coarse_to_fine_pruning(top_span_emb, top_span_mention_scores, c)
+    top_antecedents, top_antecedents_mask, top_fast_antecedent_scores, top_antecedent_offsets = self.coarse_to_fine_pruning(top_span_emb, top_span_mention_scores, c)
     num_segs, seg_len = util.shape(input_ids, 0), util.shape(input_ids, 1)
     word_segments = tf.tile(tf.expand_dims(tf.range(0, num_segs), 1), [1, seg_len])
     flat_word_segments = tf.boolean_mask(tf.reshape(word_segments, [-1]), tf.reshape(input_mask, [-1]))

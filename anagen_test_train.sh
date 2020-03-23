@@ -1,6 +1,7 @@
+#!/bin/bash
+PP_DIR=/home/hansonlu/links/data/pp_coref_anagen
 python anagen_test_train.py \
-    --jsonlines_file data/dev.english.256.twodoc.anagen.jsonlines \
-    --train_batch_size 16 \
+    --train_jsonlines $PP_DIR/train.english.256.anagen.jsonlines \
+    --eval_jsonlines $PP_DIR/dev.english.256.anagen.jsonlines \
     --gpu \
-    --num_train_epochs 40 \
-    --eval_and_save_steps 10
+    --num_train_epochs 3

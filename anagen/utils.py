@@ -18,10 +18,12 @@ def prune_antec_scores(top_antecedents, top_antecedent_scores, top_k):
 def flatten(l):
   return [item for sublist in l for item in sublist]
 
-def parse_args(parser):
+def parse_train_args(parser):
     # data input
-    parser.add_argument("--jsonlines_file", type=str)
+    parser.add_argument("--train_jsonlines", type=str)
+    parser.add_argument("--eval_jsonlines", type=str)
     parser.add_argument("--train_batch_size", type=int, default=16)
+    parser.add_argument("--eval_batch_size", type=int, default=16)
     parser.add_argument("--max_segment_len", type=int, default=512)
 
     # where to save model
@@ -35,13 +37,13 @@ def parse_args(parser):
     parser.add_argument("--random_seed", type=int, default=39393)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--num_train_epochs", type=int, default=1)
-    parser.add_argument("--eval_and_save_steps", type=int, default=50)
+    parser.add_argument("--train_log_steps", type=int, default=100)
+    parser.add_argument("--eval_and_save_steps", type=int, default=5000)
 
     # model settings
     parser.add_argument("--gpt2_hidden_size", type=int, default=768)
     parser.add_argument("--stack_start_end_emb", action="store_true")
     parser.add_argument("--use_metadata", action="store_true")
-    parser.add_argument("--use_position_embeddings", action="store_true")
     parser.add_argument("--param_init_stdev", type=float, default=0.1)
     parser.add_argument("--rnn_num_layers", type=int, default=1)
 

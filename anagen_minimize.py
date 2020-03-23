@@ -177,8 +177,8 @@ def skip(doc_key):
   return False
 
 def minimize_partition(name, language, extension, labels, stats, tokenizer, seg_len, input_dir, output_dir):
-  # input_path = "{}/{}.{}.{}".format(input_dir, name, language, extension)
-  input_path = "data/dev.english.twodoc.v4_gold_conll"
+  input_path = "{}/{}.{}.{}".format(input_dir, name, language, extension)
+  # input_path = "data/dev.english.twodoc.v4_gold_conll"
   output_path = "{}/{}.{}.{}.anagen.jsonlines".format(output_dir, name, language, seg_len)
   count = 0
   print("Minimizing {}".format(input_path))
@@ -206,8 +206,8 @@ def minimize_partition(name, language, extension, labels, stats, tokenizer, seg_
 def minimize_language(language, labels, stats, tokenizer_dir, seg_len, input_dir, output_dir, do_lower_case):
   tokenizer = GPT2Tokenizer.from_pretrained(tokenizer_dir)
   minimize_partition("dev", language, "v4_gold_conll", labels, stats, tokenizer, seg_len, input_dir, output_dir)
-  # minimize_partition("train", language, "v4_gold_conll", labels, stats, tokenizer, seg_len, input_dir, output_dir)
-  # minimize_partition("test", language, "v4_gold_conll", labels, stats, tokenizer, seg_len, input_dir, output_dir)
+  minimize_partition("train", language, "v4_gold_conll", labels, stats, tokenizer, seg_len, input_dir, output_dir)
+  minimize_partition("test", language, "v4_gold_conll", labels, stats, tokenizer, seg_len, input_dir, output_dir)
 
 if __name__ == "__main__":
   tokenizer_dir = sys.argv[1]
