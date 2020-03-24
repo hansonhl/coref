@@ -108,6 +108,7 @@ def train(args, model, train_dataset, eval_dataset):
 
                 if args.model_save_path:
                     print("  saving model to %s" % args.model_save_path)
+                    save_path = args.model_save_path + ("_step_%d.ckpt" % global_step)
                     model_checkpoint = {
                         "args": args,
                         "epoch": epoch,
