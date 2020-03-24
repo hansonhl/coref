@@ -111,9 +111,8 @@ def evaluate(args, model, eval_dataset):
         with torch.no_grad():
             batch = batch_to_device(batch, device)
             res_dict = model(batch)
-            global_step += 1
-            if global_step % args.log_steps == 0:
-                print("  evaluated %d batches" % global_step)
+            if step + 1 % args.log_steps == 0:
+                print("  evaluated %d batches" % step + 1)
             eval_loss += res_dict["loss"].item() * res_dict["num_toks"].item()
             num_toks += res_dict["num_toks"].item()
 
