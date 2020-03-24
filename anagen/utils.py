@@ -37,7 +37,7 @@ def parse_train_args(parser):
     parser.add_argument("--random_seed", type=int, default=39393)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--num_train_epochs", type=int, default=1)
-    parser.add_argument("--train_log_steps", type=int, default=100)
+    parser.add_argument("--log_steps", type=int, default=100)
     parser.add_argument("--eval_and_save_steps", type=int, default=5000)
 
     # model settings

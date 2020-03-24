@@ -1,6 +1,7 @@
 import torch
 import logging
 import tqdm
+import time
 from anagen.dataset import collate
 
 from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler
@@ -38,14 +39,17 @@ def train(args, model, train_dataset, eval_dataset):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     num_batches = len(train_dataset)
     # start training
-    logger.info("***** Running training *****")
-    logger.info("  Num examples = %d", num_batches)
-    logger.info("  Num Epochs = %d", args.num_train_epochs)
-    logger.info("  Batch size = %d", args.train_batch_size)
+    print("***** Running training *****")
+    print("  Num examples = %d" % num_batches)
+    print("  Num Epochs = %d" % args.num_train_epochs)
+    print("  Batch size = %d" % args.train_batch_size)
+    print("  Logging every %d steps" % args.log_steps)
+    print("  Evaluating and saving model every %d steps" % args.eval_and_save_steps)
 
     # TODO: add checkpoint loading functionality
 
     global_step = 0
+    total_training_time = 0.0
     for epoch in range(args.num_train_epochs):
         print("*** Epoch %d ***" % epoch)
         for step, batch in enumerate(train_dataloader):
@@ -53,16 +57,22 @@ def train(args, model, train_dataset, eval_dataset):
             model.zero_grad()
             model.train()
 
+            start_time = time.time()
             res_dict = model(batch)
             loss = res_dict["loss"]
 
             loss.backward()
             optimizer.step()
+            total_training_time += time.time() - start_time
             global_step += 1
 
-            if global_step % args.train_log_steps == 0:
-                print("  step %d/%d, global_step %d, batch loss = %.4f" \
-                    % (step, num_batches, global_step, loss))
+            if global_step % args.log_steps == 0:
+                avg_time_per_batch = total_training_time / global_step
+                estimated_time = (num_batches - (step+1)) * avg_time_per_batch
+                print("  step %d/%d, global_step %d, batch loss = %.6f" \
+                      % (step, num_batches, global_step, loss))
+                print("  avg time per batch = %.2f, est remaining time = %.2f mins" \
+                      % (avg_time_per_batch, estimated_time / 60))
 
             if global_step % args.eval_and_save_steps == 0:
                 eval_results = evaluate(args, model, eval_dataset)
@@ -101,7 +111,10 @@ def evaluate(args, model, eval_dataset):
         with torch.no_grad():
             batch = batch_to_device(batch, device)
             res_dict = model(batch)
-            eval_loss += res_dict["loss"].item() * num_toks
+            global_step += 1
+            if global_step % args.log_steps == 0:
+                print("  evaluated %d batches" % global_step)
+            eval_loss += res_dict["loss"].item() * res_dict["num_toks"].item()
             num_toks += res_dict["num_toks"].item()
 
     eval_loss = eval_loss / num_toks
