@@ -18,34 +18,10 @@ def prune_antec_scores(top_antecedents, top_antecedent_scores, top_k):
 def flatten(l):
   return [item for sublist in l for item in sublist]
 
-def parse_train_args(parser):
-    # data input
-    parser.add_argument("--train_jsonlines", type=str)
-    parser.add_argument("--eval_jsonlines", type=str)
-    parser.add_argument("--train_batch_size", type=int, default=16)
-    parser.add_argument("--eval_batch_size", type=int, default=16)
-    parser.add_argument("--max_segment_len", type=int, default=512)
-
-    # where to save model
-    parser.add_argument("--model_save_path", type=str)
-
-    # gpt2 model settings
-    parser.add_argument("--gpt2_model_dir", type=str, default=None)
-
-    # training settings
-    parser.add_argument("--gpu", action="store_true")
-    parser.add_argument("--random_seed", type=int, default=39393)
-    parser.add_argument("--learning_rate", type=float, default=0.001)
-    parser.add_argument("--num_train_epochs", type=int, default=1)
-    parser.add_argument("--log_steps", type=int, default=100)
-    parser.add_argument("--eval_and_save_steps", type=int, default=5000)
-
-    # model settings
-    parser.add_argument("--gpt2_hidden_size", type=int, default=768)
-    parser.add_argument("--stack_start_end_emb", action="store_true")
-    parser.add_argument("--use_metadata", action="store_true")
-    parser.add_argument("--param_init_stdev", type=float, default=0.1)
-    parser.add_argument("--rnn_num_layers", type=int, default=1)
-
-
+def batch_to_device(batch, device):
+    for k, v in batch.items():
+        if torch.is_tensor(v):
+            batch[k] = v.to(device)
+    return batch
+def parse_eval_args(parser):
     return parser.parse_args()

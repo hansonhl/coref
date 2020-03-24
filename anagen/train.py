@@ -3,17 +3,45 @@ import logging
 import tqdm
 import time
 from anagen.dataset import collate
+from anagen.utils import batch_to_device
 
 from torch.utils.data import DataLoader, Dataset, SequentialSampler, RandomSampler
 
 DEFAULT_TRAIN_BATCH_SIZE=1
 logger = logging.getLogger(__name__)
 
-def batch_to_device(batch, device):
-    for k, v in batch.items():
-        if torch.is_tensor(v):
-            batch[k] = v.to(device)
-    return batch
+def parse_train_args(parser):
+    # data input
+    parser.add_argument("--train_jsonlines", type=str)
+    parser.add_argument("--eval_jsonlines", type=str)
+    parser.add_argument("--train_batch_size", type=int, default=16)
+    parser.add_argument("--eval_batch_size", type=int, default=16)
+    parser.add_argument("--max_num_ctxs_in_batch", type=int, default=8)
+    parser.add_argument("--max_segment_len", type=int, default=512)
+
+    # where to save model
+    parser.add_argument("--model_save_path", type=str)
+
+    # gpt2 model settings
+    parser.add_argument("--gpt2_model_dir", type=str, default=None)
+
+    # training settings
+    parser.add_argument("--gpu", action="store_true")
+    parser.add_argument("--random_seed", type=int, default=39393)
+    parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--train_epochs", type=int, default=1)
+    parser.add_argument("--log_steps", type=int, default=100)
+    parser.add_argument("--eval_and_save_steps", type=int, default=5000)
+
+    # model settings
+    parser.add_argument("--gpt2_hidden_size", type=int, default=768)
+    parser.add_argument("--stack_start_end_emb", action="store_true")
+    parser.add_argument("--use_metadata", action="store_true")
+    parser.add_argument("--param_init_stdev", type=float, default=0.1)
+    parser.add_argument("--rnn_num_layers", type=int, default=1)
+
+    return parser.parse_args()
+
 
 # based on transformers/run_lm_finetuning
 def train(args, model, train_dataset, eval_dataset):
@@ -41,7 +69,7 @@ def train(args, model, train_dataset, eval_dataset):
     # start training
     print("***** Running training *****")
     print("  Num examples = %d" % num_batches)
-    print("  Num Epochs = %d" % args.num_train_epochs)
+    print("  Num Epochs = %d" % args.train_epochs)
     print("  Batch size = %d" % args.train_batch_size)
     print("  Logging every %d steps" % args.log_steps)
     print("  Evaluating and saving model every %d steps" % args.eval_and_save_steps)
@@ -50,7 +78,7 @@ def train(args, model, train_dataset, eval_dataset):
 
     global_step = 0
     total_training_time = 0.0
-    for epoch in range(args.num_train_epochs):
+    for epoch in range(args.train_epochs):
         print("*** Epoch %d ***" % epoch)
         for step, batch in enumerate(train_dataloader):
             batch = batch_to_device(batch, device)
@@ -70,7 +98,7 @@ def train(args, model, train_dataset, eval_dataset):
                 avg_time_per_batch = total_training_time / global_step
                 estimated_time = (num_batches - (step+1)) * avg_time_per_batch
                 print("  step %d/%d, global_step %d, batch loss = %.6f" \
-                      % (step, num_batches, global_step, loss))
+                      % (step+1, num_batches, global_step, loss))
                 print("  avg time per batch = %.2f, est remaining time = %.2f mins" \
                       % (avg_time_per_batch, estimated_time / 60))
 

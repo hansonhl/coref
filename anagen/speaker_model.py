@@ -1,4 +1,5 @@
 import torch
+import math
 from torch import nn
 from anagen.dataset import GPT2_EOS_TOKEN_ID
 from transformers import GPT2Model, GPT2Tokenizer
@@ -61,9 +62,9 @@ class LiteralSpeakerModel(nn.Module):
         anteced_ends = batch["anteced_ends"] # [batch_size,]
         anaphor_starts = batch["anaphor_starts"] # [batch_size,]
 
-        gpt2_outputs = self.gpt2_model(ctx_ids, attention_mask=ctx_ids_padding_mask)
-
-        hidden_states = gpt2_outputs[0] # [num_ctxs, max_ctx_len, gpt2_hidden_size]
+        gpt2_output = self.gpt2_model(ctx_ids, attention_mask=ctx_ids_padding_mask)
+        hidden_states = gpt2_output[0]
+        # [num_ctxs, max_ctx_len, gpt2_hidden_size]
 
         # flatten everything and prepend null representation to faciliate index selection
         flat_hidden_states = torch.cat((self.null_anteced_emb.unsqueeze(0),
@@ -122,11 +123,6 @@ class LiteralSpeakerModel(nn.Module):
         flat_mask = mask.view(-1)
         logits = logits.view(-1, logits.shape[-1])[flat_mask]
         gold_anaphor_ids = gold_anaphor_ids.view(-1)[flat_mask]
-
-        # print("logits.shape", logits.shape)
-        # print("gold_anaphor_ids.shape", gold_anaphor_ids.shape)
-        # print("flat_gold_anaphor_ids")
-        # print(debug_tokenizer.convert_ids_to_tokens(gold_anaphor_ids.tolist()))
 
         loss = self.loss_fxn(logits, gold_anaphor_ids)
         return loss

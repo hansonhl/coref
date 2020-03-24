@@ -10,22 +10,14 @@ GPT2_EOS_TOKEN_ID = 50256
 """ Stores tokenized strings and id form of a document used in the anaphor
     generation task."""
 class AnagenDocument:
-    def __init__(self, doc_key, segments, segment_starts, speakers, tokenizer):
+    def __init__(self, doc_key, segments, segment_starts, speakers, subtoken_map, tokenizer):
         self.doc_key = doc_key
         self.segment_toks = segments
-        self.speakers = speakers
-        self.tokenizer = tokenizer
-
-        # convert tokens into indeces
-        self.segment_ids = []
-        for seg in segments:
-            self.segment_ids.append(tokenizer.encode(seg))
-
-        # for seg_toks, seg_ids in zip(self.segment_toks, self.segment_ids):
-        #     print(seg_toks)
-        #     print(seg_ids)
-
+        self.segment_ids = [tokenizer.encode(seg) for seg in segments]
         self.segment_starts = segment_starts
+        self.speakers = speakers
+        self.subtoken_map = subtoken_map
+        self.tokenizer = tokenizer
 
     """ Given indices ranging in the whole document, obtain corresponding
         segment and index in the segment"""
@@ -93,11 +85,12 @@ class AnagenExample:
         examples in order of decreasing anaphor length; adds padding to context
         and anaphor sequences. """
 class AnagenDataset(Dataset):
-    def __init__(self, jsonlines_file, batch_size, max_segment_len=512):
+    def __init__(self, jsonlines_file, batch_size, max_num_ctxs_in_batch, max_segment_len=512):
         self.documents = {}
         self.docs_to_examples = {}
         self.batches = []
         self.batch_size = batch_size
+        self.max_num_ctxs_in_batch = max_num_ctxs_in_batch
         self.max_segment_len = 512
         self.num_examples = 0
         self.tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
@@ -143,20 +136,19 @@ class AnagenDataset(Dataset):
         coref_example = json.loads(line)
         doc_key = coref_example["doc_key"]
         segments = coref_example["sentences"]
+        speakers = coref_example["speakers"]
+        subtoken_map = coref_example["subtoken_map"]
+        clusters = coref_example["clusters"]
 
         # includes one extra element to facilitate _get_ctx_seg_idxs().
         segment_lens = np.array([0] + [len(s) for s in segments])
         segment_starts = np.cumsum(segment_lens)
 
-        # print("segment_starts", segment_starts)
-        # print("num of segments", len(segment_starts), "expected", len(segments))
-        speakers = coref_example["speakers"]
-        document = AnagenDocument(doc_key, segments, segment_starts, speakers, self.tokenizer)
+        document = AnagenDocument(doc_key, segments, segment_starts, speakers,
+                                  subtoken_map, self.tokenizer)
         self.documents[doc_key] = document
-        self.subtoken_map = coref_example["subtoken_map"]
 
         # get cluster information
-        clusters = coref_example["clusters"]
         anagen_examples = []
         for cluster in clusters:
             mentions = sorted(tuple(m) for m in cluster)
@@ -197,19 +189,26 @@ class AnagenDataset(Dataset):
     """ After preparing all examples, group them into batches stored in memory"""
     def _finalize_batches(self):
         curr_batch = []
+        ctxs = set()
+        prev_doc_key = None
         for doc_key, examples in self.docs_to_examples.items():
-            for example in examples:
-                curr_batch.append(example)
-                if len(curr_batch) >= self.batch_size:
-                    self._columnize_and_append_batch(curr_batch, doc_key)
-                    curr_batch = []
-            if len(curr_batch) > 0:
-                self._columnize_and_append_batch(curr_batch, doc_key)
-            curr_batch = []
             # ensure all examples in a batch are from the same document
+            for example in examples:
+                ctxs.add(example.ctx_seg_start_idx)
+                if len(curr_batch) >= self.batch_size or len(ctxs) > self.max_num_ctxs_in_batch:
+                    self._columnize_and_add_batch(curr_batch, doc_key)
+                    curr_batch = [example]
+                    ctxs = set([example.ctx_seg_start_idx])
+                else:
+                    curr_batch.append(example)
+            if len(curr_batch) > 0:
+                self._columnize_and_add_batch(curr_batch, doc_key)
+                curr_batch = []
+
 
     """convert batch to "column" form and append batch to self.batches"""
-    def _columnize_and_append_batch(self, batch, doc_key):
+    def _columnize_and_add_batch(self, batch, doc_key):
+        # print("***adding a new batch***")
         doc = self.documents[doc_key]
 
         ctx_starts = [doc.segment_starts[ex.ctx_seg_start_idx] for ex in batch]
@@ -224,21 +223,29 @@ class AnagenDataset(Dataset):
         anaphor_ids = []
         ctxs = [None for _ in range(len(doc.segment_toks))]
         for ex in batch:
+            # print(ex)
             # obtain id form of anaphor, store in memory
             anaphor_seg_idx, start_idx_in_seg, end_idx_in_seg = \
                 doc.index_in_segments(ex.anaphor_start, ex.anaphor_end)
+
             anaphor_id = doc.segment_ids[anaphor_seg_idx][start_idx_in_seg:end_idx_in_seg+1]
             # if isinstance(anaphor_ids, int):
             #     anaphor_ids = [anaphor_ids]
+            # if len(batch) == 1:
+            #     print("segment_starts", doc.segment_starts)
+            #     print("anaphor_seg_idx = %d, start_idx_in_seg = %d, end_idx_in_seg = %d" % (anaphor_seg_idx, start_idx_in_seg, end_idx_in_seg))
+            #     print(anaphor_id)
             anaphor_ids.append(anaphor_id)
 
             ctx_seg_start_idx, ctx_seg_end_idx = ex.ctx_seg_start_idx, ex.ctx_seg_end_idx
             if ctxs[ctx_seg_start_idx] is None or ctxs[ctx_seg_start_idx][1] < ctx_seg_end_idx:
                 ctxs[ctx_seg_start_idx] = (ctx_seg_start_idx, ctx_seg_end_idx)
         ctx_set = [ctx for ctx in ctxs if ctx is not None]
-        start_idx_to_set_idx = {ctx_seg_start_idx: i \
+        start_idx_to_set_idx = {
+            ctx_seg_start_idx: i \
             for i, ctx_seg_start_idx \
-            in enumerate([start_i for (start_i, _) in ctx_set])}
+            in enumerate([start_i for (start_i, _) in ctx_set])
+        }
 
         # for each item in the batch, get the index of the corresponding context
         # in the set of contexts
@@ -252,6 +259,9 @@ class AnagenDataset(Dataset):
         #
         # for s, e, anaphor_id in zip(anteced_starts, anteced_ends, anaphor_ids):
             # print("[anteced]", self.get_span_toks(doc, s, e), "[anaphor]", self.decode(anaphor_id))
+        # print("len of ctx_set when added to batches", len(ctx_set))
+        # print("ctx_set", ctx_set)
+        # print("anaphor_ids", anaphor_ids)
 
         self.batches.append([doc_key, ctx_set, ctx_set_idxs, ctx_starts,
                              anteced_starts, anteced_ends, anaphor_starts, anaphor_ids])
@@ -269,7 +279,7 @@ class AnagenDataset(Dataset):
         ctx_ids = [flatten(doc.segment_ids[start_i:end_i+1]) for start_i, end_i in ctx_set]
 
         # transform everything else into tensor form.
-        # All below have dim [batch_size,]
+        # All following tensors have dim [batch_size,]
         ctx_starts = torch.tensor(ctx_starts)
         ctx_set_idxs = torch.tensor(ctx_set_idxs)
         anteced_starts = torch.tensor(anteced_starts)
