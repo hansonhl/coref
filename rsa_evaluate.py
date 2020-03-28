@@ -15,8 +15,11 @@ from __future__ import print_function
 import os
 
 import torch
-
+import numpy as np
 import argparse
+
+import metrics
+import conll
 from anagen.rsa_model import RNNSpeakerRSAModel, GPTSpeakerRSAModel
 
 
@@ -56,34 +59,37 @@ def get_predicted_clusters(top_span_starts, top_span_ends, predicted_antecedents
   return predicted_clusters, mention_to_predicted
 
 # copied from CorefModel.evaluate_coref()
-def evaluate_coref(self, top_span_starts, top_span_ends, predicted_antecedents, gold_clusters, evaluator):
+def evaluate_coref(top_span_starts, top_span_ends, predicted_antecedents, gold_clusters, evaluator):
   gold_clusters = [tuple(tuple(m) for m in gc) for gc in gold_clusters]
   mention_to_gold = {}
   for gc in gold_clusters:
     for mention in gc:
       mention_to_gold[mention] = gc
 
-  predicted_clusters, mention_to_predicted = self.get_predicted_clusters(top_span_starts, top_span_ends, predicted_antecedents)
+  predicted_clusters, mention_to_predicted = get_predicted_clusters(top_span_starts, top_span_ends, predicted_antecedents)
   evaluator.update(predicted_clusters, gold_clusters, mention_to_predicted, mention_to_gold)
   return predicted_clusters
 
 # modified from CorefModel.evaluate()
-def evaluate(l0_inputs, rsa_model=None):
+def evaluate(l0_inputs, conll_eval_path, rsa_model=None):
   coref_predictions = {}
   coref_evaluator = metrics.CorefEvaluator()
   losses = []
   doc_keys = []
   num_evaluated = 0
   total_time = 0
+  subtoken_maps = {}
 
-  with open(from_npy, "rb") as f:
-    from_npy_dict = np.load(f)
-    in_data_dicts = from_npy_dict.item().get("data_dicts")
+  with open(l0_inputs, "rb") as f:
+    data_dicts = np.load(f).item().get("data_dicts")
 
-  for example_num, data_dict in enumerate(in_data_dicts):
+  for example_num, data_dict in enumerate(data_dicts):
     example = data_dict["example"]
 
-    doc_keys.append(example['doc_key'])
+    doc_key = example["doc_key"]
+    subtoken_map = example["subtoken_map"]
+    doc_keys.append(doc_key)
+    subtoken_maps[doc_key] = subtoken_map
 
     tensorized_example = data_dict["tensorized_example"]
     loss = data_dict["loss"]
@@ -92,7 +98,6 @@ def evaluate(l0_inputs, rsa_model=None):
     top_antecedents = data_dict["top_antecedents"]
     top_antecedent_scores = data_dict["top_antecedent_scores"]
 
-    # losses.append(session.run(self.loss, feed_dict=feed_dict))
     losses.append(loss)
 
     if rsa_model is not None:
@@ -110,14 +115,14 @@ def evaluate(l0_inputs, rsa_model=None):
       top_span_ends, predicted_antecedents, example["clusters"], coref_evaluator)
 
     if example_num % 10 == 0:
-      print("Evaluated {}/{} examples.".format(example_num + 1, len(self.eval_data)))
+      print("Evaluated {}/{} examples.".format(example_num + 1, len(data_dicts)))
 
   if rsa_model:
     print("Ran rsa on %d sentences, avg time per sentence %.2f s" % (num_evaluated, total_time / num_evaluated))
 
   summary_dict = {}
 
-  conll_results = conll.evaluate_conll(self.config["conll_eval_path"], coref_predictions, self.subtoken_maps, official_stdout=True)
+  conll_results = conll.evaluate_conll(conll_eval_path, coref_predictions, subtoken_maps, official_stdout=True)
   average_f1 = sum(results["f"] for results in conll_results.values()) / len(conll_results)
   summary_dict["Average F1 (conll)"] = average_f1
   print("Average F1 (conll): {:.2f}%".format(average_f1))
@@ -135,6 +140,7 @@ def main():
   parser = argparse.ArgumentParser()
 
   parser.add_argument("l0_inputs", type=str)
+  parser.add_argument("--conll_eval_path", type=str, required=True)
   parser.add_argument("--use_l1", action="store_true")
   parser.add_argument("--s0_model_type", type=str)
   parser.add_argument("--s0_model_path", type=str)
@@ -165,7 +171,7 @@ def main():
   else:
     rsa_model = None
 
-  evaluate(args.l0_inputs, rsa_model=rsa_model)
+  evaluate(args.l0_inputs, conll_eval_path=args.conll_eval_path, rsa_model=rsa_model)
 
 
 if __name__ == "__main__":

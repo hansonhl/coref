@@ -7,3 +7,4 @@
 
 # --anagen_model_dir /home/hansonlu/links/data/anagen_models/anagen_anaph_only_b28_lr_default
 GPU=0 python rsa_evaluate.py outputs/bert_base.eval_out.npy \
+  --conll_eval_path /home/hansonlu/links/data/coref_data/dev.english.v4_gold_conll
