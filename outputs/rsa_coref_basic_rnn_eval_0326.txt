@@ -1,0 +1,37 @@
+Official result for muc
+version: 8.01 /home/hansonlu/anagen/coref/conll-2012/scorer/v8.01/lib/CorScorer.pm
+Repeated mention in the response: 340, 340 88
+Repeated mention in the key: 656, 656 7290
+
+====== TOTALS =======
+Identification of Mentions: Recall: (16742 / 19155) 87.4%	Precision: (16742 / 20453) 81.85%	F1: 84.53%
+--------------------------------------------------------------------------
+Coreference: Recall: (12079 / 14610) 82.67%	Precision: (12079 / 15718) 76.84%	F1: 79.65%
+--------------------------------------------------------------------------
+
+Official result for bcub
+version: 8.01 /home/hansonlu/anagen/coref/conll-2012/scorer/v8.01/lib/CorScorer.pm
+Repeated mention in the response: 340, 340 88
+Repeated mention in the key: 656, 656 7290
+
+====== TOTALS =======
+Identification of Mentions: Recall: (16742 / 19155) 87.4%	Precision: (16742 / 20453) 81.85%	F1: 84.53%
+--------------------------------------------------------------------------
+Coreference: Recall: (14560.0898730346 / 19156) 76%	Precision: (13319.4182012885 / 20453) 65.12%	F1: 70.14%
+--------------------------------------------------------------------------
+
+Official result for ceafe
+version: 8.01 /home/hansonlu/anagen/coref/conll-2012/scorer/v8.01/lib/CorScorer.pm
+Repeated mention in the key: 656, 656 7290
+Repeated mention in the response: 340, 340 88
+
+====== TOTALS =======
+Identification of Mentions: Recall: (16742 / 19155) 87.4%	Precision: (16742 / 20453) 81.85%	F1: 84.53%
+--------------------------------------------------------------------------
+Coreference: Recall: (3101.5781631121 / 4546) 68.22%	Precision: (3101.5781631121 / 4735) 65.5%	F1: 66.83%
+--------------------------------------------------------------------------
+
+Average F1 (conll): 72.21%
+Average F1 (py): 72.18% on 343 docs
+Average precision (py): 69.12%
+Average recall (py): 75.61%
