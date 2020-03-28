@@ -81,7 +81,7 @@ def evaluate(l0_inputs, conll_eval_path, rsa_model=None):
   subtoken_maps = {}
 
   with open(l0_inputs, "rb") as f:
-    data_dicts = np.load(f).item().get("data_dicts")
+    data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
 
   for example_num, data_dict in enumerate(data_dicts):
     example = data_dict["example"]
