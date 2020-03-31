@@ -17,6 +17,7 @@ import time
 import torch
 import numpy as np
 import argparse
+import tqdm
 
 import metrics
 import conll
@@ -101,12 +102,10 @@ def evaluate(l0_inputs, conll_eval_path, rsa_model=None):
     losses.append(loss)
 
     if rsa_model is not None:
-      print("Running l1 for sentence %d" % example_num)
       start_time = time.time()
       top_antecedent_scores = rsa_model.l1(example, top_span_starts, top_span_ends,
                                            top_antecedents, top_antecedent_scores)
       duration = time.time() - start_time
-      print("Finished sentence %d, took %.2f s" % (example_num, duration))
       total_time += duration
       num_evaluated += 1
 
@@ -134,6 +133,8 @@ def evaluate(l0_inputs, conll_eval_path, rsa_model=None):
   print("Average precision (py): {:.2f}%".format(p * 100))
   summary_dict["Average recall (py)"] = r
   print("Average recall (py): {:.2f}%".format(r * 100))
+
+  return summary_dict
 
 def main():
   # add arguments using argparse
@@ -172,7 +173,6 @@ def main():
     rsa_model = None
 
   evaluate(args.l0_inputs, conll_eval_path=args.conll_eval_path, rsa_model=rsa_model)
-
 
 if __name__ == "__main__":
   main()
