@@ -58,19 +58,21 @@ def grid_search(l0_inputs, conll_eval_path, alphas, rsa_model):
 
     summary_dict = DD(list)
     for i in range(len(alphas)):
+        print("\n*****************************")
+        print("******* alpha = %f *******" % alphas[i])
         summary_dict["alpha"].append(alphas[i])
         conll_results = conll.evaluate_conll(conll_eval_path, coref_predictions[i], subtoken_maps, official_stdout=True)
         average_f1 = sum(results["f"] for results in conll_results.values()) / len(conll_results)
         summary_dict["Average F1 (conll)"].append(average_f1)
-        # print("Average F1 (conll): {:.2f}%".format(average_f1))
+        print("Average F1 (conll): {:.2f}%".format(average_f1))
 
         p,r,f = coref_evaluators[i].get_prf()
         summary_dict["Average F1 (py)"].append(f)
-        # print("Average F1 (py): {:.2f}% on {} docs".format(f * 100, len(doc_keys)))
+        print("Average F1 (py): {:.2f}% on {} docs".format(f * 100, len(doc_keys)))
         summary_dict["Average precision (py)"].append(p)
-        # print("Average precision (py): {:.2f}%".format(p * 100))
+        print("Average precision (py): {:.2f}%".format(p * 100))
         summary_dict["Average recall (py)"].append(r)
-        # print("Average recall (py): {:.2f}%".format(r * 100))
+        print("Average recall (py): {:.2f}%".format(r * 100))
 
     return summary_dict
 
