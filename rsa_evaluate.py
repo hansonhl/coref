@@ -117,7 +117,6 @@ def evaluate(l0_inputs, conll_eval_path, alpha=1.0, rsa_model=None, debug_out_fi
       duration = time.time() - start_time
       total_time += duration
       num_evaluated += 1
-    return
 
     predicted_antecedents = get_predicted_antecedents(top_antecedents, top_antecedent_scores)
     coref_predictions[example["doc_key"]] = evaluate_coref(top_span_starts,
