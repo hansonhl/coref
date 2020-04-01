@@ -39,7 +39,8 @@ def grid_search(l0_inputs, conll_eval_path, alphas, rsa_model):
 
         start_time = time.time()
         all_top_antecedent_scores = rsa_model.l1(example, top_span_starts, top_span_ends,
-                                                 top_antecedents, top_antecedent_scores)
+                                                 top_antecedents, top_antecedent_scores,
+                                                 alphas=alphas)
         duration = time.time() - start_time
         total_time += duration
         num_evaluated += 1
@@ -113,7 +114,9 @@ def main():
     else:
         rsa_model = None
 
-    summary_dict = grid_search(args.l0_inputs, conll_eval_path, rsa_model=rsa_model)
+    summary_dict = grid_search(args.l0_inputs, args.conll_eval_path,
+                               alphas=list(args.alphas),
+                               rsa_model=rsa_model)
     df = pd.DataFrame(summary_dict)
     if args.csv_save_path:
         df.to_csv(args.csv_save_path)
