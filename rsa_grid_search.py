@@ -64,7 +64,7 @@ def grid_search(l0_inputs, conll_eval_path, alphas, rsa_model):
         summary_dict["Average F1 (conll)"].append(average_f1)
         # print("Average F1 (conll): {:.2f}%".format(average_f1))
 
-        p,r,f = coref_evaluator.get_prf()
+        p,r,f = coref_evaluators[i].get_prf()
         summary_dict["Average F1 (py)"].append(f)
         # print("Average F1 (py): {:.2f}% on {} docs".format(f * 100, len(doc_keys)))
         summary_dict["Average precision (py)"].append(p)
