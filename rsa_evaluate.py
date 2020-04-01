@@ -72,7 +72,7 @@ def evaluate_coref(top_span_starts, top_span_ends, predicted_antecedents, gold_c
   return predicted_clusters
 
 # modified from CorefModel.evaluate()
-def evaluate(l0_inputs, conll_eval_path, rsa_model=None):
+def evaluate(l0_inputs, conll_eval_path, alpha=1.0, rsa_model=None, debug_out_file=None):
   coref_predictions = {}
   coref_evaluator = metrics.CorefEvaluator()
   losses = []
@@ -104,7 +104,10 @@ def evaluate(l0_inputs, conll_eval_path, rsa_model=None):
     if rsa_model is not None:
       start_time = time.time()
       top_antecedent_scores = rsa_model.l1(example, top_span_starts, top_span_ends,
-                                           top_antecedents, top_antecedent_scores)
+                                           top_antecedents, top_antecedent_scores,
+                                           alphas=alpha,
+                                           debug=args.debug_out_file is not None,
+                                           debug_out_file=debug_out_file)
       duration = time.time() - start_time
       total_time += duration
       num_evaluated += 1
@@ -149,6 +152,8 @@ def main():
   parser.add_argument("--max_segment_len", type=int, default=512)
   parser.add_argument("--max_num_ctxs_in_batch", type=int, default=8)
   parser.add_argument("--anteced_top_k", type=int, default=5)
+  parser.add_argument("--alpha", type=float, default=1.)
+  parser.add_argument("--debug_out_file", type="str")
 
   args = parser.parse_args()
   # finish adding arguments
@@ -172,7 +177,9 @@ def main():
   else:
     rsa_model = None
 
-  evaluate(args.l0_inputs, conll_eval_path=args.conll_eval_path, rsa_model=rsa_model)
+  evaluate(args.l0_inputs, conll_eval_path=args.conll_eval_path,
+           alpha=args.alpha, rsa_model=rsa_model,
+           debug_out_file=args.debug_out_file)
 
 if __name__ == "__main__":
   main()
