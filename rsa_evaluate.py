@@ -159,6 +159,7 @@ def main():
   parser.add_argument("--max_num_ctxs_in_batch", type=int, default=8)
   parser.add_argument("--anteced_top_k", type=int, default=5)
   parser.add_argument("--alpha", type=float, default=1.)
+  parser.add_argument("--s0_normalization", type=string, default="length")
   parser.add_argument("--debug_out_file", type=str)
 
   args = parser.parse_args()
@@ -174,6 +175,7 @@ def main():
                                      anteced_top_k=args.anteced_top_k,
                                      max_num_ctxs_in_batch=args.max_num_ctxs_in_batch,
                                      device=device,
+                                     s0_normalization=args.s0_normalization,
                                      logger=None)
     if args.s0_model_type in ["gpt", "GPT"]:
       rsa_model = GPTSpeakerRSAModel(args.s0_model_path,

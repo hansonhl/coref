@@ -7,6 +7,7 @@ import re
 import sys
 import json
 import collections
+import argparse
 
 import util
 import conll
@@ -209,20 +210,29 @@ def minimize_language(language, labels, stats, tokenizer_dir, seg_len, input_dir
   minimize_partition("train", language, "v4_gold_conll", labels, stats, tokenizer, seg_len, input_dir, output_dir)
   minimize_partition("test", language, "v4_gold_conll", labels, stats, tokenizer, seg_len, input_dir, output_dir)
 
-if __name__ == "__main__":
-  tokenizer_dir = sys.argv[1]
-  input_dir = sys.argv[2]
-  output_dir = sys.argv[3]
-  do_lower_case = sys.argv[4].lower() == 'true'
-  print(do_lower_case)
+
+def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument("tokenizer_dir", type=str)
+  parser.add_argument("input_dir", type=str)
+  parser.add_argument("output_dir", type=str)
+  parser.add_argument("segment_len", type=int)
+  parser.add_argument("--do_lower_case", action="store_true")
+  args = parser.parse_args()
+
+  print(args.do_lower_case)
   labels = collections.defaultdict(set)
   stats = collections.defaultdict(int)
-  for seg_len in [256]:
-    minimize_language("english", labels, stats, tokenizer_dir, seg_len, input_dir, output_dir, do_lower_case)
-    # minimize_language("chinese", labels, stats, vocab_file, seg_len)
-    # minimize_language("es", labels, stats, vocab_file, seg_len)
-    # minimize_language("arabic", labels, stats, vocab_file, seg_len)
+
+  minimize_language("english", labels, stats, args.tokenizer_dir, args.segment_len, args.input_dir, args.output_dir, args.do_lower_case)
+  # minimize_language("chinese", labels, stats, vocab_file, seg_len)
+  # minimize_language("es", labels, stats, vocab_file, seg_len)
+  # minimize_language("arabic", labels, stats, vocab_file, seg_len)
   for k, v in labels.items():
     print("{} = [{}]".format(k, ", ".join("\"{}\"".format(label) for label in v)))
   for k, v in stats.items():
     print("{} = {}".format(k, v))
+
+
+if __name__ == "__main__":
+  main()
