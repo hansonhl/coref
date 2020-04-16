@@ -129,8 +129,6 @@ def evaluate(l0_inputs, conll_eval_path, alpha=1.0, rsa_model=None, debug_out_fi
   if rsa_model:
     print("Ran rsa on %d sentences, avg time per sentence %.2f s" % (num_evaluated, total_time / num_evaluated))
 
-  return
-
   summary_dict = {}
 
   conll_results = conll.evaluate_conll(conll_eval_path, coref_predictions, subtoken_maps, official_stdout=True)
