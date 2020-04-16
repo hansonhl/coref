@@ -85,6 +85,8 @@ def evaluate(l0_inputs, conll_eval_path, alpha=1.0, rsa_model=None, debug_out_fi
     data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
 
   for example_num, data_dict in enumerate(data_dicts):
+    if example_num == 5:
+      break
     example = data_dict["example"]
 
     doc_key = example["doc_key"]
@@ -128,6 +130,8 @@ def evaluate(l0_inputs, conll_eval_path, alpha=1.0, rsa_model=None, debug_out_fi
   if rsa_model:
     print("Ran rsa on %d sentences, avg time per sentence %.2f s" % (num_evaluated, total_time / num_evaluated))
 
+  return
+
   summary_dict = {}
 
   conll_results = conll.evaluate_conll(conll_eval_path, coref_predictions, subtoken_maps, official_stdout=True)
@@ -159,7 +163,7 @@ def main():
   parser.add_argument("--max_num_ctxs_in_batch", type=int, default=8)
   parser.add_argument("--anteced_top_k", type=int, default=5)
   parser.add_argument("--alpha", type=float, default=1.)
-  parser.add_argument("--s0_normalization", type=string, default="length")
+  parser.add_argument("--s0_normalization", type=str, default="length")
   parser.add_argument("--debug_out_file", type=str)
 
   args = parser.parse_args()
