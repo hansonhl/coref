@@ -85,8 +85,6 @@ def evaluate(l0_inputs, conll_eval_path, alpha=1.0, rsa_model=None, debug_out_fi
     data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
 
   for example_num, data_dict in enumerate(data_dicts):
-    if example_num == 5:
-      break
     example = data_dict["example"]
 
     doc_key = example["doc_key"]
@@ -125,7 +123,8 @@ def evaluate(l0_inputs, conll_eval_path, alpha=1.0, rsa_model=None, debug_out_fi
       top_span_ends, predicted_antecedents, example["clusters"], coref_evaluator)
 
     if example_num % 10 == 0:
-      print("Evaluated {}/{} examples.".format(example_num + 1, len(data_dicts)))
+      print("Evaluated %d/%d examples. Avg time per sentence %.2f s." % \
+            (example_num + 1, len(data_dicts), total_time / num_evaluated))
 
   if rsa_model:
     print("Ran rsa on %d sentences, avg time per sentence %.2f s" % (num_evaluated, total_time / num_evaluated))
