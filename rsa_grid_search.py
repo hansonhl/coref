@@ -28,7 +28,7 @@ def conll_evaluate(alphas, conll_eval_path, coref_predictions, subtoken_maps):
 
         p,r,f = coref_evaluators[i].get_prf()
         summary_dict["Average F1 (py)"].append(f)
-        print("Average F1 (py): {:.2f}% on {} docs".format(f * 100, len(doc_keys)))
+        print("Average F1 (py): {:.2f}% on {} docs".format(f * 100, len(subtoken_maps.keys())))
         summary_dict["Average precision (py)"].append(p)
         print("Average precision (py): {:.2f}%".format(p * 100))
         summary_dict["Average recall (py)"].append(r)
