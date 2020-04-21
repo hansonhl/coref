@@ -18,12 +18,14 @@ def conll_evaluate(l0_inputs, alphas, conll_eval_path, all_top_antecedent_scores
     print("Compiling clusters and evaluators for conll suite")
     coref_predictions = [{} for _ in alphas]
     coref_evaluators = [metrics.CorefEvaluator() for _ in alphas]
+    subtoken_maps = {}
 
     with open(l0_inputs, "rb") as f:
         data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
 
     for example_num, data_dict in enumerate(tqdm(data_dicts)):
         example = data_dict["example"]
+        subtoken_maps[example["doc_key"]] = example["subtoken_map"]
         top_span_starts = data_dict["top_span_starts"]
         top_span_ends = data_dict["top_span_ends"]
         top_antecedents = data_dict["top_antecedents"]
@@ -55,21 +57,13 @@ def conll_evaluate(l0_inputs, alphas, conll_eval_path, all_top_antecedent_scores
     return summary_dict
 
 def grid_search(l0_inputs, alphas, rsa_model):
-
     top_antecedent_scores = [{} for _ in alphas]
-
-    doc_keys = []
 
     with open(l0_inputs, "rb") as f:
         data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
 
     for example_num, data_dict in enumerate(tqdm(data_dicts)):
         example = data_dict["example"]
-
-        doc_key = example["doc_key"]
-        subtoken_map = example["subtoken_map"]
-        doc_keys.append(doc_key)
-        subtoken_maps[doc_key] = subtoken_map
 
         top_span_starts = data_dict["top_span_starts"]
         top_span_ends = data_dict["top_span_ends"]
@@ -157,7 +151,7 @@ def main():
     if args.conll_eval_path:
         print("Evaluating using conll suite")
         summary_dict = conll_evaluate(args.l0_inputs, alphas,
-                                      conll_eval_path, all_top_antecedent_scores)
+                                      args.conll_eval_path, all_top_antecedent_scores)
         # summary_dict = conll_evaluate(alphas, args.conll_eval_path,
             # coref_predictions, coref_evaluators, subtoken_maps)
         if args.csv_save_path:
