@@ -14,7 +14,26 @@ from rsa_evaluate import evaluate, get_predicted_antecedents, evaluate_coref
 from collections import defaultdict as DD
 
 
-def conll_evaluate(alphas, conll_eval_path, coref_predictions, coref_evaluators, subtoken_maps):
+def conll_evaluate(l0_inputs, alphas, conll_eval_path, all_top_antecedent_scores):
+    print("Compiling clusters and evaluators for conll suite")
+    coref_predictions = [{} for _ in alphas]
+    coref_evaluators = [metrics.CorefEvaluator() for _ in alphas]
+
+    with open(l0_inputs, "rb") as f:
+        data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
+
+    for example_num, data_dict in enumerate(tqdm(data_dicts)):
+        example = data_dict["example"]
+        top_span_starts = data_dict["top_span_starts"]
+        top_span_ends = data_dict["top_span_ends"]
+        top_antecedents = data_dict["top_antecedents"]
+
+        for i in range(len(alphas)):
+            top_antecedent_scores = all_top_antecedent_scores[i]
+            predicted_antecedents = get_predicted_antecedents(top_antecedents, top_antecedent_scores)
+            coref_predictions[i][example["doc_key"]] = evaluate_coref(top_span_starts,
+                top_span_ends, predicted_antecedents, example["clusters"], coref_evaluators[i])
+
     summary_dict = DD(list)
     for i in range(len(alphas)):
         print("\n*****************************")
@@ -36,12 +55,10 @@ def conll_evaluate(alphas, conll_eval_path, coref_predictions, coref_evaluators,
     return summary_dict
 
 def grid_search(l0_inputs, alphas, rsa_model):
-    coref_predictions = [{} for _ in alphas]
-    coref_evaluators = [metrics.CorefEvaluator() for _ in alphas]
+
+    top_antecedent_scores = [{} for _ in alphas]
+
     doc_keys = []
-    num_evaluated = 0
-    total_time = 0
-    subtoken_maps = {} # for conll evaluator
 
     with open(l0_inputs, "rb") as f:
         data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
@@ -59,23 +76,19 @@ def grid_search(l0_inputs, alphas, rsa_model):
         top_antecedents = data_dict["top_antecedents"]
         top_antecedent_scores = data_dict["top_antecedent_scores"]
 
-        start_time = time.time()
         all_top_antecedent_scores = rsa_model.l1(example, top_span_starts, top_span_ends,
                                                  top_antecedents, top_antecedent_scores,
                                                  alphas=alphas)
-        duration = time.time() - start_time
-        total_time += duration
-        num_evaluated += 1
+    return all_top_antecedent_scores
 
-        for i in range(len(alphas)):
-            top_antecedent_scores = all_top_antecedent_scores[i]
-            predicted_antecedents = get_predicted_antecedents(top_antecedents, top_antecedent_scores)
-            coref_predictions[i][example["doc_key"]] = evaluate_coref(top_span_starts,
-                top_span_ends, predicted_antecedents, example["clusters"], coref_evaluators[i])
+        # for i in range(len(alphas)):
+        #     top_antecedent_scores = all_top_antecedent_scores[i]
+        #     predicted_antecedents = get_predicted_antecedents(top_antecedents, top_antecedent_scores)
+        #     coref_predictions[i][example["doc_key"]] = evaluate_coref(top_span_starts,
+        #         top_span_ends, predicted_antecedents, example["clusters"], coref_evaluators[i])
 
-    print("Ran rsa on %d sentences, avg time per sentence %.2f s" % (num_evaluated, total_time / num_evaluated))
+    # print("Ran rsa on %d sentences, avg time per sentence %.2f s" % (num_evaluated, total_time / num_evaluated))
 
-    return coref_predictions, coref_evaluators, subtoken_maps
 
 
 def main():
@@ -108,7 +121,7 @@ def main():
     if args.raw_load_path:
         print("Loading model predictions from %s" % args.raw_load_path)
         with open(args.raw_load_path, "rb") as f:
-            alphas, coref_predictions, coref_evaluators, subtoken_maps = pickle.load(f)
+            alphas, all_top_antecedent_scores = pickle.load(f)
     else:
         # finish adding arguments
         print("alphas:", args.alphas)
@@ -133,18 +146,20 @@ def main():
             rsa_model = None
 
         alphas = list(args.alphas)
-        coref_predictions, coref_evaluators, subtoken_maps = grid_search(
-            args.l0_inputs, alphas=alphas, rsa_model=rsa_model)
+        all_top_antecedent_scores = grid_search(args.l0_inputs, alphas=alphas,
+                                                rsa_model=rsa_model)
 
     if args.raw_save_path:
         print("Saving model predictions to %s" % args.raw_save_path)
         with open(args.raw_save_path, "wb") as f:
-            pickle.dump((alphas, coref_predictions, subtoken_maps), f)
+            pickle.dump((alphas, all_top_antecedent_scores), f)
 
     if args.conll_eval_path:
         print("Evaluating using conll suite")
-        summary_dict = conll_evaluate(alphas, args.conll_eval_path,
-            coref_predictions, coref_evaluators, subtoken_maps)
+        summary_dict = conll_evaluate(args.l0_inputs, alphas,
+                                      conll_eval_path, all_top_antecedent_scores)
+        # summary_dict = conll_evaluate(alphas, args.conll_eval_path,
+            # coref_predictions, coref_evaluators, subtoken_maps)
         if args.csv_save_path:
             print("Savimg conll evaluate results to %s" % args.csv_save_path)
             df = pd.DataFrame(summary_dict)
