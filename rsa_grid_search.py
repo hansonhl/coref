@@ -14,9 +14,8 @@ from rsa_evaluate import evaluate, get_predicted_antecedents, evaluate_coref
 from collections import defaultdict as DD
 
 
-def conll_evaluate(alphas, conll_eval_path, coref_predictions, subtoken_maps):
+def conll_evaluate(alphas, conll_eval_path, coref_predictions, coref_evaluators, subtoken_maps):
     summary_dict = DD(list)
-    coref_evaluators = [metrics.CorefEvaluator() for _ in alphas]
     for i in range(len(alphas)):
         print("\n*****************************")
         print("******* alpha = %f *******" % alphas[i])
@@ -38,6 +37,7 @@ def conll_evaluate(alphas, conll_eval_path, coref_predictions, subtoken_maps):
 
 def grid_search(l0_inputs, alphas, rsa_model):
     coref_predictions = [{} for _ in alphas]
+    coref_evaluators = [metrics.CorefEvaluator() for _ in alphas]
     doc_keys = []
     num_evaluated = 0
     total_time = 0
@@ -73,10 +73,9 @@ def grid_search(l0_inputs, alphas, rsa_model):
             coref_predictions[i][example["doc_key"]] = evaluate_coref(top_span_starts,
                 top_span_ends, predicted_antecedents, example["clusters"], coref_evaluators[i])
 
-
     print("Ran rsa on %d sentences, avg time per sentence %.2f s" % (num_evaluated, total_time / num_evaluated))
 
-    return coref_predictions, subtoken_maps
+    return coref_predictions, coref_evaluators, subtoken_maps
 
 
 def main():
@@ -109,7 +108,7 @@ def main():
     if args.raw_load_path:
         print("Loading model predictions from %s" % args.raw_load_path)
         with open(args.raw_load_path, "rb") as f:
-            alphas, coref_predictions, subtoken_maps = pickle.load(f)
+            alphas, coref_predictions, coref_evaluators, subtoken_maps = pickle.load(f)
     else:
         # finish adding arguments
         print("alphas:", args.alphas)
@@ -134,8 +133,8 @@ def main():
             rsa_model = None
 
         alphas = list(args.alphas)
-        coref_predictions, subtoken_maps = grid_search(args.l0_inputs,
-            alphas=alphas, rsa_model=rsa_model)
+        coref_predictions, coref_evaluators, subtoken_maps = grid_search(
+            args.l0_inputs, alphas=alphas, rsa_model=rsa_model)
 
     if args.raw_save_path:
         print("Saving model predictions to %s" % args.raw_save_path)
@@ -144,7 +143,8 @@ def main():
 
     if args.conll_eval_path:
         print("Evaluating using conll suite")
-        summary_dict = conll_evaluate(alphas, args.conll_eval_path, coref_predictions, subtoken_maps)
+        summary_dict = conll_evaluate(alphas, args.conll_eval_path,
+            coref_predictions, coref_evaluators, subtoken_maps)
         if args.csv_save_path:
             print("Savimg conll evaluate results to %s" % args.csv_save_path)
             df = pd.DataFrame(summary_dict)
