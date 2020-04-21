@@ -16,6 +16,7 @@ from collections import defaultdict as DD
 
 def conll_evaluate(alphas, conll_eval_path, coref_predictions, subtoken_maps):
     summary_dict = DD(list)
+    coref_evaluators = [metrics.CorefEvaluator() for _ in alphas]
     for i in range(len(alphas)):
         print("\n*****************************")
         print("******* alpha = %f *******" % alphas[i])
@@ -37,7 +38,6 @@ def conll_evaluate(alphas, conll_eval_path, coref_predictions, subtoken_maps):
 
 def grid_search(l0_inputs, alphas, rsa_model):
     coref_predictions = [{} for _ in alphas]
-    coref_evaluators = [metrics.CorefEvaluator() for _ in alphas]
     doc_keys = []
     num_evaluated = 0
     total_time = 0
