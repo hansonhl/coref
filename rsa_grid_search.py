@@ -31,7 +31,7 @@ def conll_evaluate(l0_inputs, alphas, conll_eval_path, all_top_antecedent_scores
         top_antecedents = data_dict["top_antecedents"]
 
         for i in range(len(alphas)):
-            top_antecedent_scores = all_top_antecedent_scores[i]
+            top_antecedent_scores = all_top_antecedent_scores[example["doc_key"]][i]
             predicted_antecedents = get_predicted_antecedents(top_antecedents, top_antecedent_scores)
             coref_predictions[i][example["doc_key"]] = evaluate_coref(top_span_starts,
                 top_span_ends, predicted_antecedents, example["clusters"], coref_evaluators[i])
@@ -57,7 +57,7 @@ def conll_evaluate(l0_inputs, alphas, conll_eval_path, all_top_antecedent_scores
     return summary_dict
 
 def grid_search(l0_inputs, alphas, rsa_model):
-    top_antecedent_scores = [{} for _ in alphas]
+    all_top_antecedent_scores = {}
 
     with open(l0_inputs, "rb") as f:
         data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
@@ -70,9 +70,12 @@ def grid_search(l0_inputs, alphas, rsa_model):
         top_antecedents = data_dict["top_antecedents"]
         top_antecedent_scores = data_dict["top_antecedent_scores"]
 
-        all_top_antecedent_scores = rsa_model.l1(example, top_span_starts, top_span_ends,
+        top_antecedent_scores = rsa_model.l1(example, top_span_starts, top_span_ends,
                                                  top_antecedents, top_antecedent_scores,
                                                  alphas=alphas)
+
+        all_top_antecedent_scores[example["doc_key"]] = top_antecedent_scores
+
     return all_top_antecedent_scores
 
         # for i in range(len(alphas)):
@@ -94,6 +97,8 @@ def main():
                         help="save model predictions to a pickle file")
     parser.add_argument("--raw_load_path", type=str,
                         help="load model predictions from a pickle file")
+    parser.add_argument("--raw_load_path_part2", type=str,
+                        help="part 2 of raw_load_path")
     parser.add_argument("--conll_eval_path", type=str,
                         help="conduct suite of conll evaluation metrics by specifying path to file required by conll evaluator")
     parser.add_argument("--csv_save_path", type=str,
@@ -116,6 +121,10 @@ def main():
         print("Loading model predictions from %s" % args.raw_load_path)
         with open(args.raw_load_path, "rb") as f:
             alphas, all_top_antecedent_scores = pickle.load(f)
+        if args.raw_load_path_part2:
+            with open(args.raw_load_path_part2, "rb") as f:
+                _, all_top_antecedent_scores_part2 = pickle.load(f)
+            all_top_antecedent_scores += all_top_antecedent_scores_part2
     else:
         # finish adding arguments
         print("alphas:", args.alphas)
