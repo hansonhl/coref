@@ -124,7 +124,7 @@ def main():
         if args.raw_load_path_part2:
             with open(args.raw_load_path_part2, "rb") as f:
                 _, all_top_antecedent_scores_part2 = pickle.load(f)
-            all_top_antecedent_scores += all_top_antecedent_scores_part2
+            all_top_antecedent_scores.update(all_top_antecedent_scores_part2)
     else:
         # finish adding arguments
         print("alphas:", args.alphas)
