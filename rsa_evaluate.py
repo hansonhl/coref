@@ -120,12 +120,15 @@ def get_l1_scores(l0_inputs, rsa_model, alpha=1.0, debug_out_file=None):
         data_dicts = np.load(f, allow_pickle=True).item().get("data_dicts")
 
     if debug_out_file is not None:
-      debug = True
-      if debug_out_file == "stdout":
-        debug_out_file = None
+        debug = True
+        if debug_out_file == "stdout":
+            debug_out_file = None
+            print("Starting evaluation, outputting debug info to stdout")
+        else:
+            print("Starting evaluation, outputting debug info to %s_*.txt" % debug_out_file)
     else:
-      debug = None
-
+        debug = None
+        print("Starting evaluation, not outputting debug info")
     for example_num, data_dict in enumerate(tqdm(data_dicts)):
         example = data_dict["example"]
 
@@ -277,6 +280,7 @@ def main():
                                             anteced_top_k=args.anteced_top_k,
                                             max_num_ctxs_in_batch=args.max_num_ctxs_in_batch,
                                             device=device,
+                                            s0_normalization=args.s0_normalization,
                                             logger=None)
             if args.s0_model_type in ["gpt", "GPT"]:
                 rsa_model = GPTSpeakerRSAModel(args.s0_model_path,
