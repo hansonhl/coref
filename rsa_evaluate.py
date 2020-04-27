@@ -26,6 +26,8 @@ from anagen.rsa_model import RNNSpeakerRSAModel, GPTSpeakerRSAModel
 
 def conll_evaluate(l0_inputs, alphas, conll_eval_path, all_top_antecedent_scores):
     print("Compiling clusters and evaluators for conll suite")
+    if isinstance(alphas, float) or isinstance(alphas, int):
+        alphas = [alphas]
     coref_predictions = [{} for _ in alphas]
     coref_evaluators = [metrics.CorefEvaluator() for _ in alphas]
     subtoken_maps = {}
@@ -296,14 +298,12 @@ def main():
     if args.raw_save_path:
         print("Saving model predictions to %s" % args.raw_save_path)
         with open(args.raw_save_path, "wb") as f:
-            pickle.dump((alphas, all_top_antecedent_scores), f)
+            pickle.dump((alpha, all_top_antecedent_scores), f)
 
     if args.conll_eval_path:
         print("Evaluating using conll suite")
-        summary_dict = conll_evaluate(args.l0_inputs, alphas,
+        summary_dict = conll_evaluate(args.l0_inputs, alpha,
                                       args.conll_eval_path, all_top_antecedent_scores)
-        # summary_dict = conll_evaluate(alphas, args.conll_eval_path,
-            # coref_predictions, coref_evaluators, subtoken_maps)
         if args.csv_save_path:
             print("Saving conll evaluate results to %s" % args.csv_save_path)
             df = pd.DataFrame(summary_dict)
