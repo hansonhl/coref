@@ -305,7 +305,7 @@ def main():
         # summary_dict = conll_evaluate(alphas, args.conll_eval_path,
             # coref_predictions, coref_evaluators, subtoken_maps)
         if args.csv_save_path:
-            print("Savimg conll evaluate results to %s" % args.csv_save_path)
+            print("Saving conll evaluate results to %s" % args.csv_save_path)
             df = pd.DataFrame(summary_dict)
             df.to_csv(args.csv_save_path)
 

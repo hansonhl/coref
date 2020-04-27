@@ -10,7 +10,7 @@ import pickle
 import metrics
 import conll
 from anagen.rsa_model import RNNSpeakerRSAModel, GPTSpeakerRSAModel
-from rsa_evaluate import evaluate, get_predicted_antecedents, evaluate_coref
+from rsa_evaluate import get_predicted_antecedents, evaluate_coref
 from collections import defaultdict as DD
 
 
