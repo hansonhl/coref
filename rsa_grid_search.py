@@ -112,6 +112,7 @@ def main():
     parser.add_argument("--max_segment_len", type=int, default=512)
     parser.add_argument("--max_num_ctxs_in_batch", type=int, default=8)
     parser.add_argument("--anteced_top_k", type=int, default=5)
+    parser.add_argument("--s0_normalization", type=int, default="length")
 
     parser.add_argument("--alphas", type=float, nargs="+")
 
@@ -138,6 +139,7 @@ def main():
                                                max_segment_len=args.max_segment_len,
                                                anteced_top_k=args.anteced_top_k,
                                                max_num_ctxs_in_batch=args.max_num_ctxs_in_batch,
+                                               s0_normalization=args.s0_normalization,
                                                device=device,
                                                logger=None)
             if args.s0_model_type in ["gpt", "GPT"]:
